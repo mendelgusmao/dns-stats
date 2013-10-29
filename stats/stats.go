@@ -13,33 +13,33 @@ import (
 var (
 	statsPort = ":8514"
 	format    = "02/01/06 15:04:05"
+
+	sql1 = `SELECT fqdn, COUNT(*) AS c 
+			FROM hosts, queries
+			WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
+			AND id = destination
+			GROUP BY fqdn
+			ORDER BY c DESC
+			LIMIT 25`
+	sql2 = `SELECT date, fqdn
+			FROM hosts, queries
+			WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
+			AND id = destination
+			ORDER BY date DESC
+			LIMIT 25`
 )
 
 func Stats(dbname string) {
-	var err error
-	var db *sqlite3.Conn
-	if db, err = sqlite3.Open(dbname); err != nil {
-		fmt.Println("Error opening database:", err)
-		return
-	}
-
 	fmt.Println("Initializing HTTP stats")
 
-	sql1 := `SELECT fqdn, COUNT(*) AS c 
-			 FROM hosts, queries
-		 	 WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
-		 	 AND id = destination
-		 	 GROUP BY fqdn
-		 	 ORDER BY c DESC
-		 	 LIMIT 25`
-	sql2 := `SELECT date, fqdn
-			 FROM hosts, queries
-			 WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
-			 AND id = destination
-			 ORDER BY date DESC
-			 LIMIT 25`
-
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		var db *sqlite3.Conn
+		if db, err = sqlite3.Open(dbname); err != nil {
+			fmt.Println("Error opening database:", err)
+			return
+		}
+
 		start := time.Now()
 		sql := `SELECT DISTINCT fqdn AS origin
 				FROM hosts h, queries q
@@ -126,6 +126,10 @@ func Stats(dbname string) {
 
 		w.Header().Add("Content-Type", "text/plain")
 		fmt.Fprintln(w, strings.Join(buffer, "\n"))
+
+		if err := db.Close(); err != nil {
+			fmt.Println("Error closing database:", err)
+		}
 	})
 
 	fmt.Println(http.ListenAndServe(statsPort, nil))

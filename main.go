@@ -16,7 +16,6 @@ import (
 
 var (
 	dbname     = "/home/mendel/dns.sqlite3"
-	db         *sqlite3.Conn
 	message    = regexp.MustCompile(`(UD|TC)P (.*),.* --> .*,53 ALLOW: Outbound access request \[DNS query for (.*)\]`)
 	syslogPort = ":1514"
 	cache      = make([]Query, 0)
@@ -86,14 +85,23 @@ func store() {
 	mtx.Lock()
 	defer mtx.Unlock()
 
+	var db *sqlite3.Conn
+	var err error
+	if db, err = sqlite3.Open(dbname); err != nil {
+		fmt.Println("Error opening database:", err)
+		return
+	}
+
+	defer db.Close()
+
 	if err := db.Begin(); err != nil {
 		fmt.Printf("There are %d items waiting\n", len(cache))
 		fmt.Println("Error opening transaction:\n", err)
 	} else {
 		errors := false
 		for _, query := range cache {
-			errors = insertHost(query.Destination)
-			errors = insertHost(query.Origin)
+			errors = insertHost(db, query.Destination)
+			errors = insertHost(db, query.Origin)
 
 			args := sqlite3.NamedArgs{
 				"$date":        query.Date,
@@ -125,7 +133,7 @@ func store() {
 
 }
 
-func insertHost(fqdn string) (errors bool) {
+func insertHost(db *sqlite3.Conn, fqdn string) (errors bool) {
 	args := sqlite3.NamedArgs{
 		"$fqdn":  fqdn,
 		"$fqdn2": fqdn,
@@ -150,21 +158,23 @@ func insertHost(fqdn string) (errors bool) {
 }
 
 func main() {
+	var db *sqlite3.Conn
 	var err error
 	if db, err = sqlite3.Open(dbname); err != nil {
 		fmt.Println("Error opening database:", err)
 		return
 	}
 
-	if err := db.Exec("CREATE TABLE IF NOT EXISTS queries (date DATE, origin INTEGER, destination INTEGER)"); err != nil {
+	if err = db.Exec("CREATE TABLE IF NOT EXISTS queries (date DATE, origin INTEGER, destination INTEGER)"); err != nil {
 		fmt.Println("Error creating table:", err)
 		return
 	}
 
-	if err := db.Exec("CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, fqdn TEXT)"); err != nil {
+	if err = db.Exec("CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, fqdn TEXT)"); err != nil {
 		fmt.Println("Error creating table:", err)
 		return
 	}
+	db.Close()
 
 	fmt.Println("Initializing DNS listener")
 

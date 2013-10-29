@@ -79,6 +79,10 @@ func cacheStore() {
 }
 
 func store() {
+	if len(cache) == 0 {
+		return
+	}
+
 	mtx.Lock()
 
 	if err := db.Begin(); err != nil {

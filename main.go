@@ -68,41 +68,45 @@ func (h *handler) mainLoop() {
 	h.End()
 }
 
-func inserter() {
+func cacheStore() {
 	interval, _ := time.ParseDuration("1m")
 
 	c := time.Tick(interval)
 	for now := range c {
 		fmt.Println("tick:", now)
-		mtx.Lock()
+		store()
+	}
+}
 
-		if err := db.Begin(); err != nil {
-			fmt.Printf("There are %d items waiting\n", len(cache))
-			fmt.Println("Error opening transaction:\n", err)
-		} else {
-			for _, query := range cache {
-				args := sqlite3.NamedArgs{
-					"$date":        query.Date,
-					"$origin":      query.Origin,
-					"$destination": query.Destination,
-				}
+func store() {
+	mtx.Lock()
 
-				if err := db.Exec("INSERT INTO queries VALUES($date, $origin, $destination)", args); err != nil {
-					fmt.Println("Error inserting:", err)
-				}
+	if err := db.Begin(); err != nil {
+		fmt.Printf("There are %d items waiting\n", len(cache))
+		fmt.Println("Error opening transaction:\n", err)
+	} else {
+		for _, query := range cache {
+			args := sqlite3.NamedArgs{
+				"$date":        query.Date,
+				"$origin":      query.Origin,
+				"$destination": query.Destination,
 			}
 
-			if err := db.Commit(); err != nil {
-				fmt.Println("Error committing transaction:", err)
-				fmt.Printf("There are %d items waiting\n", len(cache))
-			} else {
-				fmt.Printf("Transaction is successful, %d items inserted\n", len(cache))
-				cache = make([]Query, 0)
+			if err := db.Exec("INSERT INTO queries VALUES($date, $origin, $destination)", args); err != nil {
+				fmt.Println("Error inserting:", err)
 			}
 		}
 
-		mtx.Unlock()
+		if err := db.Commit(); err != nil {
+			fmt.Println("Error committing transaction:", err)
+			fmt.Printf("There are %d items waiting\n", len(cache))
+		} else {
+			fmt.Printf("Transaction is successful, %d items inserted\n", len(cache))
+			cache = make([]Query, 0)
+		}
 	}
+
+	mtx.Unlock()
 }
 
 func main() {
@@ -125,14 +129,15 @@ func main() {
 	s.Listen(syslogPort)
 
 	go stats.Stats(dbname)
-	go inserter()
+	go cacheStore()
 
 	// Wait for terminating signal
 	sc := make(chan os.Signal, 2)
 	signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT)
 	<-sc
 
-	// Shutdown the server
+	fmt.Println("Storing...")
+	store()
 	fmt.Println("Shutdown the server...")
 	s.Shutdown()
 	fmt.Println("Server is down")

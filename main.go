@@ -9,7 +9,9 @@ import (
 	"os/signal"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 )
 
 var (
@@ -17,12 +19,20 @@ var (
 	db         *sqlite3.Conn
 	message    = regexp.MustCompile(`(UD|TC)P (.*),.* --> .*,53 ALLOW: Outbound access request \[DNS query for (.*)\]`)
 	syslogPort = ":1514"
+	cache      = make([]Query, 0)
+	mtx        sync.RWMutex
 )
 
 type handler struct {
 	// To simplify implementation of our handler we embed helper
 	// syslog.BaseHandler struct.
 	*syslog.BaseHandler
+}
+
+type Query struct {
+	Date        time.Time
+	Origin      string
+	Destination string
 }
 
 // Simple fiter for named/bind messages which can be used with BaseHandler
@@ -44,20 +54,55 @@ func (h *handler) mainLoop() {
 			break
 		}
 
+		mtx.Lock()
 		matches := message.FindStringSubmatch(m.Content)
-
-		args := sqlite3.NamedArgs{
-			"$date":        m.Time,
-			"$origin":      matches[2],
-			"$destination": matches[3],
+		query := Query{
+			Date:        m.Time,
+			Origin:      matches[2],
+			Destination: matches[3],
 		}
-
-		if err := db.Exec("INSERT INTO queries VALUES($date, $origin, $destination)", args); err != nil {
-			fmt.Println("Error inserting:", err)
-		}
+		cache = append(cache, query)
+		mtx.Unlock()
 	}
 	fmt.Println("Exit handler")
 	h.End()
+}
+
+func inserter() {
+	interval, _ := time.ParseDuration("1m")
+
+	c := time.Tick(interval)
+	for now := range c {
+		fmt.Println("tick:", now)
+		mtx.Lock()
+
+		if err := db.Begin(); err != nil {
+			fmt.Printf("There are %d items waiting\n", len(cache))
+			fmt.Println("Error opening transaction:\n", err)
+		} else {
+			for _, query := range cache {
+				args := sqlite3.NamedArgs{
+					"$date":        query.Date,
+					"$origin":      query.Origin,
+					"$destination": query.Destination,
+				}
+
+				if err := db.Exec("INSERT INTO queries VALUES($date, $origin, $destination)", args); err != nil {
+					fmt.Println("Error inserting:", err)
+				}
+			}
+
+			if err := db.Commit(); err != nil {
+				fmt.Println("Error committing transaction:", err)
+				fmt.Printf("There are %d items waiting\n", len(cache))
+			} else {
+				fmt.Printf("Transaction is successful, %d items inserted\n", len(cache))
+				cache = make([]Query, 0)
+			}
+		}
+
+		mtx.Unlock()
+	}
 }
 
 func main() {
@@ -80,6 +125,7 @@ func main() {
 	s.Listen(syslogPort)
 
 	go stats.Stats(dbname)
+	go inserter()
 
 	// Wait for terminating signal
 	sc := make(chan os.Signal, 2)

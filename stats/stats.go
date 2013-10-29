@@ -13,6 +13,7 @@ import (
 var (
 	statsPort = ":8514"
 	format    = "02/01/06 15:04:05"
+	lines     = 25
 
 	sql1 = `SELECT fqdn, COUNT(*) AS c 
 			FROM hosts, queries
@@ -49,7 +50,7 @@ func Stats(dbname string) {
 			sql = r.FormValue("sql")
 		}
 
-		buffer := make([]string, 60)
+		buffer := make([]string, lines*2+4)
 		origins := make([]string, 0)
 
 		for s, err := db.Query(sql); err == nil; err = s.Next() {
@@ -71,7 +72,7 @@ func Stats(dbname string) {
 
 		for _, origin := range origins {
 			i := 0
-			prebuffer := make([]string, 60)
+			prebuffer := make([]string, lines*2+4)
 			prebuffer[i] = strings.Replace(origin, "%", "0", -1)
 			i++
 			prebuffer[i] = ""
@@ -96,7 +97,7 @@ func Stats(dbname string) {
 				i++
 			}
 
-			i = 26
+			i = lines + 1
 			prebuffer[i] = ""
 			i++
 
@@ -122,7 +123,7 @@ func Stats(dbname string) {
 			}
 		}
 
-		buffer[len(buffer)-7] = fmt.Sprintf("%d seconds to generate", time.Now().Second()-start.Second())
+		buffer[len(buffer)-1] = fmt.Sprintf("took %d seconds to generate", time.Now().Second()-start.Second())
 
 		w.Header().Add("Content-Type", "text/plain")
 		fmt.Fprintln(w, strings.Join(buffer, "\n"))

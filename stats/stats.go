@@ -3,7 +3,6 @@ package stats
 import (
 	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"fmt"
-	"html"
 	"net/http"
 	"sort"
 	"strconv"
@@ -14,11 +13,6 @@ import (
 var (
 	statsPort = ":8514"
 	format    = "02/01/06 15:04:05"
-	form      = `
-	<form action="/dns" method="post">
-		<input type="text" value="%s" name="sql" size="100" />
-		<input type="submit" value="sql" />
-	</form>`
 )
 
 func Stats(dbname string) {
@@ -31,12 +25,25 @@ func Stats(dbname string) {
 
 	fmt.Println("Initializing HTTP stats")
 
-	sql1 := "SELECT destination, COUNT(*) AS c FROM queries WHERE origin LIKE $origin GROUP BY destination ORDER BY c DESC LIMIT 25"
-	sql2 := "SELECT date, destination FROM queries WHERE origin LIKE $origin ORDER BY date DESC LIMIT 25"
+	sql1 := `SELECT fqdn, COUNT(*) AS c 
+			 FROM hosts, queries
+		 	 WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
+		 	 AND id = destination
+		 	 GROUP BY fqdn
+		 	 ORDER BY c DESC
+		 	 LIMIT 25`
+	sql2 := `SELECT date, fqdn
+			 FROM hosts, queries
+			 WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
+			 AND id = destination
+			 ORDER BY date DESC
+			 LIMIT 25`
 
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		sql := "SELECT DISTINCT origin FROM queries"
+		sql := `SELECT DISTINCT fqdn AS origin
+				FROM hosts h, queries q
+				WHERE h.id = q.origin`
 
 		if len(r.FormValue("sql")) > 0 {
 			sql = r.FormValue("sql")
@@ -81,7 +88,7 @@ func Stats(dbname string) {
 				}
 
 				count := row["c"].(int64)
-				line := fmt.Sprintf("%-6d %s", count, row["destination"])
+				line := fmt.Sprintf("%-6d %s", count, row["fqdn"])
 				if len(line) > max {
 					max = len(line)
 				}
@@ -102,7 +109,7 @@ func Stats(dbname string) {
 					return
 				}
 
-				line := fmt.Sprintf("%s %s", row["date"].(time.Time).Format(format), row["destination"])
+				line := fmt.Sprintf("%s %s", row["date"].(time.Time).Format(format), row["fqdn"])
 				if len(line) > max {
 					max = len(line)
 				}
@@ -117,9 +124,8 @@ func Stats(dbname string) {
 
 		buffer[len(buffer)-7] = fmt.Sprintf("%d seconds to generate", time.Now().Second()-start.Second())
 
-		w.Header().Add("Content-Type", "text/html")
-		fmt.Fprintf(w, form, html.EscapeString(sql))
-		fmt.Fprintf(w, "<pre>%s</pre>", strings.Join(buffer, "\n"))
+		w.Header().Add("Content-Type", "text/plain")
+		fmt.Fprintln(w, strings.Join(buffer, "\n"))
 	})
 
 	fmt.Println(http.ListenAndServe(statsPort, nil))

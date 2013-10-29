@@ -84,21 +84,34 @@ func store() {
 	}
 
 	mtx.Lock()
+	defer mtx.Unlock()
 
 	if err := db.Begin(); err != nil {
 		fmt.Printf("There are %d items waiting\n", len(cache))
 		fmt.Println("Error opening transaction:\n", err)
 	} else {
+		errors := false
 		for _, query := range cache {
+			errors = insertHost(query.Destination)
+			errors = insertHost(query.Origin)
+
 			args := sqlite3.NamedArgs{
 				"$date":        query.Date,
 				"$origin":      query.Origin,
 				"$destination": query.Destination,
 			}
 
-			if err := db.Exec("INSERT INTO queries VALUES($date, $origin, $destination)", args); err != nil {
-				fmt.Println("Error inserting:", err)
+			if err := db.Exec("INSERT INTO queries VALUES ($date, (SELECT id FROM hosts WHERE fqdn = $origin), (SELECT id FROM hosts WHERE fqdn = $destination))", args); err != nil {
+				fmt.Println("Error inserting query:", err, "[", args, "]")
+				errors = true
 			}
+		}
+
+		if errors {
+			if err := db.Rollback(); err != nil {
+				fmt.Println("Error rolling back transaction:", err)
+			}
+			return
 		}
 
 		if err := db.Commit(); err != nil {
@@ -110,7 +123,30 @@ func store() {
 		}
 	}
 
-	mtx.Unlock()
+}
+
+func insertHost(fqdn string) (errors bool) {
+	args := sqlite3.NamedArgs{
+		"$fqdn":  fqdn,
+		"$fqdn2": fqdn,
+	}
+
+	if err := db.Exec("UPDATE hosts SET fqdn = $fqdn WHERE fqdn = $fqdn2", args); err != nil {
+		fmt.Println("Error updating:", err, "[", args, "]")
+		errors = true
+	}
+
+	if db.RowsAffected() == 0 {
+		args := sqlite3.NamedArgs{
+			"$fqdn": fqdn,
+		}
+
+		if err := db.Exec("INSERT INTO hosts (fqdn) VALUES ($fqdn)", args); err != nil {
+			fmt.Println("Error inserting host:", err, "[", args, "]")
+			errors = true
+		}
+	}
+	return
 }
 
 func main() {
@@ -120,7 +156,12 @@ func main() {
 		return
 	}
 
-	if err := db.Exec("CREATE TABLE IF NOT EXISTS queries (date DATE, origin TEXT, destination TEXT)"); err != nil {
+	if err := db.Exec("CREATE TABLE IF NOT EXISTS queries (date DATE, origin INTEGER, destination INTEGER)"); err != nil {
+		fmt.Println("Error creating table:", err)
+		return
+	}
+
+	if err := db.Exec("CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, fqdn TEXT)"); err != nil {
 		fmt.Println("Error creating table:", err)
 		return
 	}

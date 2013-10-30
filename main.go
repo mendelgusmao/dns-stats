@@ -53,13 +53,17 @@ func (h *handler) mainLoop() {
 			break
 		}
 
-		mtx.Lock()
 		matches := message.FindStringSubmatch(m.Content)
 		query := Query{
 			Date:        m.Time,
 			Origin:      matches[2],
 			Destination: matches[3],
 		}
+
+		fmt.Println("Received syslog: @", m.Content, "@")
+		fmt.Println("Generated query: @", query, "@")
+
+		mtx.Lock()
 		cache = append(cache, query)
 		mtx.Unlock()
 	}
@@ -95,8 +99,8 @@ func store() {
 	defer db.Close()
 
 	if err := db.Begin(); err != nil {
-		fmt.Printf("There are %d items waiting\n", len(cache))
 		fmt.Println("Error opening transaction:\n", err)
+		fmt.Printf("There are %d items waiting\n", len(cache))
 	} else {
 		errors := false
 		for _, query := range cache {

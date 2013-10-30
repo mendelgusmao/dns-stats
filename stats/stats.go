@@ -15,6 +15,9 @@ var (
 	format    = "02/01/06 15:04:05"
 	lines     = 25
 
+	sql = `SELECT DISTINCT fqdn AS origin
+		   FROM hosts, queries
+		   WHERE id = origin`
 	sql1 = `SELECT fqdn, COUNT(*) AS c 
 			FROM hosts, queries
 			WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
@@ -42,13 +45,6 @@ func Stats(dbname string) {
 		}
 
 		start := time.Now()
-		sql := `SELECT DISTINCT fqdn AS origin
-				FROM hosts h, queries q
-				WHERE h.id = q.origin`
-
-		if len(r.FormValue("sql")) > 0 {
-			sql = r.FormValue("sql")
-		}
 
 		buffer := make([]string, lines*2+4)
 		origins := make([]string, 0)
@@ -123,7 +119,7 @@ func Stats(dbname string) {
 			}
 		}
 
-		buffer[len(buffer)-1] = fmt.Sprintf("took %d seconds to generate", time.Now().Second()-start.Second())
+		buffer[len(buffer)-1] = fmt.Sprintf("took %f seconds to generate", time.Now().Sub(start).Seconds())
 
 		w.Header().Add("Content-Type", "text/plain")
 		fmt.Fprintln(w, strings.Join(buffer, "\n"))

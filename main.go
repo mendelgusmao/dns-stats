@@ -16,7 +16,7 @@ import (
 
 var (
 	dbname     = "/home/mendel/dns.sqlite3"
-	message    = regexp.MustCompile(`(UD|TC)P (.*),.* --> .*,53 ALLOW: Outbound access request \[DNS query for (.*)\]`)
+	message    = regexp.MustCompile(`(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for (.*)\]`)
 	syslogPort = ":1514"
 	cache      = make([]Query, 0)
 	mtx        sync.RWMutex

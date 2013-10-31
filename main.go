@@ -17,11 +17,12 @@ const (
 )
 
 var (
-	dbname         string
-	collectorPort  string
-	reportPort     string
-	storeInterval  string
-	generateReport bool
+	dbname        string
+	collectorPort string
+	reportPort    string
+	storeInterval string
+	stdOutReport  bool
+	reportLines   int
 )
 
 func init() {
@@ -29,7 +30,8 @@ func init() {
 	flag.StringVar(&collectorPort, "collector-port", ":1514", "Address for syslog collector to listen to")
 	flag.StringVar(&reportPort, "report-port", ":8514", "Address for report server to listen to")
 	flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
-	flag.BoolVar(&generateReport, "report", false, "Print report to stdout")
+	flag.BoolVar(&stdOutReport, "stdout", false, "Print report to stdout")
+	flag.IntVar(&reportLines, "lines", 25, "Number of records in report (per category)")
 }
 
 func main() {
@@ -39,8 +41,9 @@ func main() {
 
 	report.ReportPort = reportPort
 	report.DBName = dbname
+	report.Lines = reportLines
 
-	if generateReport {
+	if stdOutReport {
 		fmt.Println(report.Render())
 	} else {
 		fmt.Printf("Configuration parameters: \n  db -> %s\n  collector-port -> %s\n  report-port -> %s\n  store-interval -> %s\n",

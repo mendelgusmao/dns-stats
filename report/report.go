@@ -15,6 +15,7 @@ type fetcher func(*sqlite3.Conn, string) ([]string, int)
 var (
 	DBName     string
 	ReportPort string
+	Lines      int
 
 	fetchers = []fetcher{fetchTopQueries, fetchRecentQueries}
 )
@@ -22,7 +23,6 @@ var (
 const (
 	net    = "192.168.0.%"
 	format = "02/01/06 15:04:05"
-	lines  = 25
 
 	sql = `SELECT DISTINCT fqdn
 		   FROM hosts, queries
@@ -33,13 +33,13 @@ const (
 			  AND id = destination
 			  GROUP BY fqdn
 			  ORDER BY c DESC
-			  LIMIT 25`
+			  LIMIT $limit`
 	sqlRecent = `SELECT date, fqdn
 				 FROM hosts, queries
 				 WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
 				 AND id = destination
 				 ORDER BY date DESC
-				 LIMIT 25`
+				 LIMIT $limit`
 )
 
 func Run() {
@@ -66,7 +66,7 @@ func Render() string {
 		}
 	}()
 
-	buffersLength := (lines * len(fetchers)) + 5
+	buffersLength := (Lines * len(fetchers)) + 5
 	start := time.Now()
 	buffer := make([]string, buffersLength)
 	origins := fetchOrigins(db)
@@ -126,12 +126,12 @@ func fetchOrigins(db *sqlite3.Conn) []string {
 }
 
 func fetchTopQueries(db *sqlite3.Conn, origin string) ([]string, int) {
-	queries := make([]string, lines)
+	queries := make([]string, Lines)
 	max := 0
 	pairs := make([][]interface{}, 0)
 	maxCount := 0
 
-	for stmt, err := db.Query(sqlTop, origin); err == nil; err = stmt.Next() {
+	for stmt, err := db.Query(sqlTop, origin, Lines); err == nil; err = stmt.Next() {
 		row := make(sqlite3.RowMap)
 		errs := stmt.Scan(row)
 
@@ -166,11 +166,11 @@ func fetchTopQueries(db *sqlite3.Conn, origin string) ([]string, int) {
 }
 
 func fetchRecentQueries(db *sqlite3.Conn, origin string) ([]string, int) {
-	queries := make([]string, lines)
+	queries := make([]string, Lines)
 	max := 0
 	index := 0
 
-	for stmt, err := db.Query(sqlRecent, origin); err == nil; err = stmt.Next() {
+	for stmt, err := db.Query(sqlRecent, origin, Lines); err == nil; err = stmt.Next() {
 		row := make(sqlite3.RowMap)
 		errs := stmt.Scan(row)
 

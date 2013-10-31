@@ -13,6 +13,9 @@ import (
 type fetcher func(*sqlite3.Conn, string) ([]string, int)
 
 var (
+	DBName     string
+	ReportPort string
+
 	format = "02/01/06 15:04:05"
 	lines  = 25
 
@@ -37,21 +40,21 @@ var (
 	net      = "192.168.0.%"
 )
 
-func Run(dbname, reportPort string) {
+func Run() {
 	fmt.Println("Initializing HTTP stats")
 
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/plain")
-		fmt.Fprintln(w, renderReport(dbname))
+		fmt.Fprintln(w, renderReport(DBName))
 	})
 
-	fmt.Println(http.ListenAndServe(reportPort, nil))
+	fmt.Println(http.ListenAndServe(ReportPort, nil))
 }
 
-func renderReport(dbname string) string {
+func renderReport(DBName string) string {
 	var err error
 	var db *sqlite3.Conn
-	if db, err = sqlite3.Open(dbname); err != nil {
+	if db, err = sqlite3.Open(DBName); err != nil {
 		fmt.Println("Error opening database:", err)
 		return ""
 	}

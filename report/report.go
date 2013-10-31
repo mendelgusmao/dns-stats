@@ -120,9 +120,10 @@ func fetchOrigins(db *sqlite3.Conn) []string {
 	}
 
 	sort.Sort(vector(origins))
-	origins[0] = net
+	newOrigins := []string{net}
+	newOrigins = append(newOrigins, origins...)
 
-	return origins
+	return newOrigins
 }
 
 func fetchTopQueries(db *sqlite3.Conn, origin string) ([]string, int) {

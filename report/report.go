@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -123,7 +124,8 @@ func fetchOrigins(db *sqlite3.Conn) []string {
 func fetchTopQueries(db *sqlite3.Conn, origin string) ([]string, int) {
 	queries := make([]string, lines)
 	max := 0
-	index := 0
+	pairs := make([][]interface{}, 0)
+	maxCount := 0
 
 	for stmt, err := db.Query(sqlTop, origin); err == nil; err = stmt.Next() {
 		row := make(sqlite3.RowMap)
@@ -135,14 +137,25 @@ func fetchTopQueries(db *sqlite3.Conn, origin string) ([]string, int) {
 		}
 
 		count := row["c"].(int64)
-		line := fmt.Sprintf("%-6d %s", count, row["fqdn"])
+		lenCount := len(strconv.FormatInt(count, 10))
+
+		if lenCount > maxCount {
+			maxCount = lenCount
+		}
+
+		pairs = append(pairs, []interface{}{count, row["fqdn"]})
+	}
+
+	format := fmt.Sprintf("%%-%dd %%s", maxCount+1)
+
+	for index, pair := range pairs {
+		line := fmt.Sprintf(format, pair[0], pair[1])
 
 		if len(line) > max {
 			max = len(line)
 		}
 
 		queries[index] = line
-		index++
 	}
 
 	return queries, max

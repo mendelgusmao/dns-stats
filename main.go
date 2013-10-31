@@ -2,7 +2,7 @@ package main
 
 import (
 	"code.google.com/p/go-sqlite/go1/sqlite3"
-	"dns-stats/stats"
+	"dns-stats/report"
 	"fmt"
 	"github.com/ziutek/syslog"
 	"os"
@@ -187,7 +187,7 @@ func main() {
 	s.AddHandler(newHandler())
 	s.Listen(syslogPort)
 
-	go stats.Stats(dbname)
+	go report.Run(dbname)
 	go cacheStore()
 
 	// Wait for terminating signal

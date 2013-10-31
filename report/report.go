@@ -1,4 +1,4 @@
-package stats
+package report
 
 import (
 	"code.google.com/p/go-sqlite/go1/sqlite3"
@@ -37,18 +37,18 @@ var (
 	net      = "192.168.0.%"
 )
 
-func Stats(dbname string) {
+func Run(dbname string) {
 	fmt.Println("Initializing HTTP stats")
 
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/plain")
-		fmt.Fprintln(w, fetchStats(dbname))
+		fmt.Fprintln(w, renderReport(dbname))
 	})
 
 	fmt.Println(http.ListenAndServe(statsPort, nil))
 }
 
-func fetchStats(dbname string) string {
+func renderReport(dbname string) string {
 	var err error
 	var db *sqlite3.Conn
 	if db, err = sqlite3.Open(dbname); err != nil {
@@ -68,7 +68,6 @@ func fetchStats(dbname string) string {
 
 	for _, origin := range origins {
 		prebuffer := make([]string, buffersLength)
-		fmt.Println("PreBuffer size is", len(prebuffer))
 		prebuffer[0] = strings.Replace(origin, "%", "0", -1)
 		max := len(prebuffer[0])
 		i := 2

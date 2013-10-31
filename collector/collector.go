@@ -33,9 +33,9 @@ type handler struct {
 }
 
 type Query struct {
-	Date        time.Time
-	Origin      string
-	Destination string
+	date        time.Time
+	origin      string
+	destination string
 }
 
 func filter(m *syslog.Message) bool {
@@ -44,7 +44,7 @@ func filter(m *syslog.Message) bool {
 
 func newHandler() *handler {
 	h := handler{syslog.NewBaseHandler(5, filter, false)}
-	go h.mainLoop() // BaseHandler needs some gorutine that reads from its queue
+	go h.mainLoop()
 	return &h
 }
 
@@ -57,9 +57,9 @@ func (h *handler) mainLoop() {
 
 		matches := message.FindStringSubmatch(m.Content)
 		query := Query{
-			Date:        m.Time,
-			Origin:      matches[2],
-			Destination: matches[3],
+			date:        m.Time,
+			origin:      matches[2],
+			destination: matches[3],
 		}
 
 		fmt.Println("Received syslog: @", m.Content, "@")
@@ -106,13 +106,13 @@ func Store() {
 	} else {
 		errors := false
 		for _, query := range cache {
-			errors = insertHost(db, query.Destination)
-			errors = insertHost(db, query.Origin)
+			errors = insertHost(db, query.destination)
+			errors = insertHost(db, query.origin)
 
 			args := sqlite3.NamedArgs{
-				"$date":        query.Date,
-				"$origin":      query.Origin,
-				"$destination": query.Destination,
+				"$date":        query.date,
+				"$origin":      query.origin,
+				"$destination": query.destination,
 			}
 
 			if err := db.Exec(sqlInsertQuery, args); err != nil {

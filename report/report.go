@@ -16,6 +16,11 @@ var (
 	DBName     string
 	ReportPort string
 
+	fetchers = []fetcher{fetchTopQueries, fetchRecentQueries}
+)
+
+const (
+	net    = "192.168.0.%"
 	format = "02/01/06 15:04:05"
 	lines  = 25
 
@@ -35,9 +40,6 @@ var (
 				 AND id = destination
 				 ORDER BY date DESC
 				 LIMIT 25`
-
-	fetchers = []fetcher{fetchTopQueries, fetchRecentQueries}
-	net      = "192.168.0.%"
 )
 
 func Run() {

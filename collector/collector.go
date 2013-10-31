@@ -10,8 +10,17 @@ import (
 	"time"
 )
 
+const (
+	sqlInsertHost = `INSERT INTO hosts (fqdn)
+					  VALUES ($fqdn)`
+	sqlInsertQuery = `INSERT INTO queries
+					  VALUES ($date, (SELECT id FROM hosts WHERE fqdn = $origin), (SELECT id FROM hosts WHERE fqdn = $destination))`
+	sqlUpdateHost = `UPDATE hosts SET fqdn = $fqdn WHERE fqdn = $fqdn2`
+	regexMessage  = `(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for (.*)\]`
+)
+
 var (
-	message       = regexp.MustCompile(`(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for (.*)\]`)
+	message       = regexp.MustCompile(regexMessage)
 	cache         = make([]Query, 0)
 	mtx           sync.RWMutex
 	DBName        string
@@ -106,7 +115,7 @@ func Store() {
 				"$destination": query.Destination,
 			}
 
-			if err := db.Exec("INSERT INTO queries VALUES ($date, (SELECT id FROM hosts WHERE fqdn = $origin), (SELECT id FROM hosts WHERE fqdn = $destination))", args); err != nil {
+			if err := db.Exec(sqlInsertQuery, args); err != nil {
 				fmt.Println("Error inserting query:", err, "[", args, "]")
 				errors = true
 			}
@@ -136,7 +145,7 @@ func insertHost(db *sqlite3.Conn, fqdn string) (errors bool) {
 		"$fqdn2": fqdn,
 	}
 
-	if err := db.Exec("UPDATE hosts SET fqdn = $fqdn WHERE fqdn = $fqdn2", args); err != nil {
+	if err := db.Exec(sqlUpdateHost, args); err != nil {
 		fmt.Println("Error updating:", err, "[", args, "]")
 		errors = true
 	}
@@ -146,7 +155,7 @@ func insertHost(db *sqlite3.Conn, fqdn string) (errors bool) {
 			"$fqdn": fqdn,
 		}
 
-		if err := db.Exec("INSERT INTO hosts (fqdn) VALUES ($fqdn)", args); err != nil {
+		if err := db.Exec(sqlInsertHost, args); err != nil {
 			fmt.Println("Error inserting host:", err, "[", args, "]")
 			errors = true
 		}
@@ -155,7 +164,7 @@ func insertHost(db *sqlite3.Conn, fqdn string) (errors bool) {
 }
 
 func Run() *syslog.Server {
-	fmt.Println("Initializing DNS listener")
+	fmt.Println("Initializing syslog collector")
 
 	go cacheStore()
 

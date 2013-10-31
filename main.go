@@ -11,6 +11,11 @@ import (
 	"syscall"
 )
 
+const (
+	sqlCreateQueries = "CREATE TABLE IF NOT EXISTS queries (date DATE, origin INTEGER, destination INTEGER)"
+	sqlCreateHosts   = "CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, fqdn TEXT)"
+)
+
 var (
 	dbname         string
 	collectorPort  string
@@ -68,12 +73,12 @@ func initializeDB() {
 		return
 	}
 
-	if err = db.Exec("CREATE TABLE IF NOT EXISTS queries (date DATE, origin INTEGER, destination INTEGER)"); err != nil {
+	if err = db.Exec(sqlCreateQueries); err != nil {
 		fmt.Println("Error creating table:", err)
 		return
 	}
 
-	if err = db.Exec("CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, fqdn TEXT)"); err != nil {
+	if err = db.Exec(sqlCreateHosts); err != nil {
 		fmt.Println("Error creating table:", err)
 		return
 	}

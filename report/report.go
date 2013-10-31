@@ -13,9 +13,8 @@ import (
 type fetcher func(*sqlite3.Conn, string) ([]string, int)
 
 var (
-	statsPort = ":8514"
-	format    = "02/01/06 15:04:05"
-	lines     = 25
+	format = "02/01/06 15:04:05"
+	lines  = 25
 
 	sql = `SELECT DISTINCT fqdn
 		   FROM hosts, queries
@@ -38,7 +37,7 @@ var (
 	net      = "192.168.0.%"
 )
 
-func Run(dbname string) {
+func Run(dbname, reportPort string) {
 	fmt.Println("Initializing HTTP stats")
 
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +45,7 @@ func Run(dbname string) {
 		fmt.Fprintln(w, renderReport(dbname))
 	})
 
-	fmt.Println(http.ListenAndServe(statsPort, nil))
+	fmt.Println(http.ListenAndServe(reportPort, nil))
 }
 
 func renderReport(dbname string) string {

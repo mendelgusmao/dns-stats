@@ -3,6 +3,7 @@ package main
 import (
 	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"dns-stats/report"
+	"flag"
 	"fmt"
 	"github.com/ziutek/syslog"
 	"os"
@@ -15,12 +16,20 @@ import (
 )
 
 var (
-	dbname     = "/home/mendel/dns.sqlite3"
-	message    = regexp.MustCompile(`(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for (.*)\]`)
-	syslogPort = ":1514"
-	cache      = make([]Query, 0)
-	mtx        sync.RWMutex
+	dbname     string
+	syslogPort string
+	reportPort string
+
+	message = regexp.MustCompile(`(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for (.*)\]`)
+	cache   = make([]Query, 0)
+	mtx     sync.RWMutex
 )
+
+func init() {
+	flag.StringVar(&dbname, "db", os.Getenv("HOME")+"/dns.sqlite3", "Absolute path to SQLite3 database")
+	flag.StringVar(&syslogPort, "syslog-port", ":1514", "Address for syslog collector to listen to")
+	flag.StringVar(&reportPort, "report-port", ":8514", "Address for report server to listen to")
+}
 
 type handler struct {
 	// To simplify implementation of our handler we embed helper
@@ -162,6 +171,8 @@ func insertHost(db *sqlite3.Conn, fqdn string) (errors bool) {
 }
 
 func main() {
+	flag.Parse()
+
 	var db *sqlite3.Conn
 	var err error
 	if db, err = sqlite3.Open(dbname); err != nil {
@@ -187,7 +198,7 @@ func main() {
 	s.AddHandler(newHandler())
 	s.Listen(syslogPort)
 
-	go report.Run(dbname)
+	go report.Run(dbname, reportPort)
 	go cacheStore()
 
 	// Wait for terminating signal

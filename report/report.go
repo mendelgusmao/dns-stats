@@ -45,13 +45,13 @@ func Run() {
 
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/plain")
-		fmt.Fprintln(w, renderReport(DBName))
+		fmt.Fprintln(w, Render())
 	})
 
 	fmt.Println(http.ListenAndServe(ReportPort, nil))
 }
 
-func renderReport(DBName string) string {
+func Render() string {
 	var err error
 	var db *sqlite3.Conn
 	if db, err = sqlite3.Open(DBName); err != nil {

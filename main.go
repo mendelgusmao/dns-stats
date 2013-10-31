@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	dbname        string
-	collectorPort string
-	reportPort    string
-	storeInterval string
+	dbname         string
+	collectorPort  string
+	reportPort     string
+	storeInterval  string
+	generateReport bool
 )
 
 func init() {
@@ -23,34 +24,40 @@ func init() {
 	flag.StringVar(&collectorPort, "collector-port", ":1514", "Address for syslog collector to listen to")
 	flag.StringVar(&reportPort, "report-port", ":8514", "Address for report server to listen to")
 	flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
+	flag.BoolVar(&generateReport, "report", false, "Print report to stdout")
 }
 
 func main() {
 	flag.Parse()
 
-	fmt.Printf("Configuration parameters: \n  db -> %s\n  collector-port -> %s\n  report-port -> %s\n  store-interval -> %s\n",
-		dbname, collectorPort, reportPort, storeInterval)
-
 	initializeDB()
 
-	collector.CollectorPort = collectorPort
-	collector.DBName = dbname
-	collector.StoreInterval = storeInterval
 	report.ReportPort = reportPort
 	report.DBName = dbname
 
-	go report.Run()
-	s := collector.Run()
+	if generateReport {
+		fmt.Println(report.Render())
+	} else {
+		fmt.Printf("Configuration parameters: \n  db -> %s\n  collector-port -> %s\n  report-port -> %s\n  store-interval -> %s\n",
+			dbname, collectorPort, reportPort, storeInterval)
 
-	sc := make(chan os.Signal, 2)
-	signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT)
-	<-sc
+		collector.CollectorPort = collectorPort
+		collector.DBName = dbname
+		collector.StoreInterval = storeInterval
 
-	fmt.Println("Storing...")
-	collector.Store()
-	fmt.Println("Shutdown the server...")
-	s.Shutdown()
-	fmt.Println("Server is down")
+		go report.Run()
+		s := collector.Run()
+
+		sc := make(chan os.Signal, 2)
+		signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT)
+		<-sc
+
+		fmt.Println("Storing...")
+		collector.Store()
+		fmt.Println("Shutdown the server...")
+		s.Shutdown()
+		fmt.Println("Server is down")
+	}
 }
 
 func initializeDB() {

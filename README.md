@@ -14,7 +14,8 @@ You'll need to create a rule to forward syslog messages from the router to &lt;m
 rsyslog example:
 
 ```
-:hostname,isequal,"2013" @127.0.0.1:1514 & ~
+:hostname,isequal,"2013" @127.0.0.1:1514 
+& ~
 ```
 
 "2013" should be something like "192.168.0.1" but my router is buggy and sends the current year instead of its address. Maybe it's not your case.

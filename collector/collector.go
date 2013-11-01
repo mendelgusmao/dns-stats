@@ -16,7 +16,7 @@ const (
 	sqlInsertQuery = `INSERT INTO queries
 					  VALUES ($date, (SELECT id FROM hosts WHERE fqdn = $origin), (SELECT id FROM hosts WHERE fqdn = $destination))`
 	sqlUpdateHost = `UPDATE hosts SET fqdn = $fqdn WHERE fqdn = $fqdn2`
-	regexMessage  = `(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for (.*)\]`
+	regexMessage  = `(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for ([^\[\]]+)`
 )
 
 var (
@@ -39,7 +39,7 @@ type Query struct {
 }
 
 func filter(m *syslog.Message) bool {
-	return strings.Contains(m.Content, "DNS")
+	return strings.Contains(m.Content, "DNS query")
 }
 
 func newHandler() *handler {

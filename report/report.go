@@ -3,6 +3,7 @@ package report
 import (
 	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"fmt"
+	"net"
 	"net/http"
 	"sort"
 	"strconv"
@@ -17,12 +18,13 @@ var (
 	ReportPort string
 	Lines      int
 
-	fetchers = []fetcher{fetchTopQueries, fetchRecentQueries}
+	fetchers    = []fetcher{fetchTopQueries, fetchRecentQueries}
+	cachedHosts = make(map[string]string)
 )
 
 const (
-	net    = "192.168.0.%"
-	format = "02/01/06 15:04:05"
+	network = "192.168.0.%"
+	format  = "02/01/06 15:04:05"
 
 	sql = `SELECT DISTINCT fqdn
 		   FROM hosts, queries
@@ -66,7 +68,7 @@ func Render() string {
 		}
 	}()
 
-	buffersLength := (Lines * len(fetchers)) + 5
+	buffersLength := Lines*len(fetchers) + 2*len(fetchers) + 1
 	start := time.Now()
 	buffer := make([]string, buffersLength)
 	origins := fetchOrigins(db)
@@ -74,6 +76,24 @@ func Render() string {
 	for _, origin := range origins {
 		prebuffer := make([]string, buffersLength)
 		prebuffer[0] = strings.Replace(origin, "%", "0", -1)
+		originAddr := prebuffer[0]
+
+		var hostName string
+		var ok bool
+		if hostName, ok = cachedHosts[originAddr]; !ok {
+			if hosts, err := net.LookupAddr(originAddr); err == nil {
+				hostName = hosts[0]
+			} else {
+				hostName = ""
+			}
+
+			cachedHosts[originAddr] = hostName
+		}
+
+		if len(hostName) > 0 {
+			prebuffer[0] = fmt.Sprintf("%s (%s)", originAddr, hostName)
+		}
+
 		max := len(prebuffer[0])
 		i := 2
 
@@ -105,7 +125,7 @@ func Render() string {
 }
 
 func fetchOrigins(db *sqlite3.Conn) []string {
-	origins := make([]string, 1)
+	origins := make([]string, 0)
 
 	for stmt, err := db.Query(sql); err == nil; err = stmt.Next() {
 		row := make(sqlite3.RowMap)
@@ -120,7 +140,7 @@ func fetchOrigins(db *sqlite3.Conn) []string {
 	}
 
 	sort.Sort(vector(origins))
-	newOrigins := []string{net}
+	newOrigins := []string{network}
 	newOrigins = append(newOrigins, origins...)
 
 	return newOrigins

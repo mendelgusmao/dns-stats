@@ -22,11 +22,11 @@ rsyslog example:
 - Download the latest version of Go &lt;http://code.google.com/p/go/downloads/list&gt;
 - *if it's your first time using Go, there are some details of installation that should be clarified with some research*
 - At a terminal, clone this repo and execute *go build && ./dns-stats*
-- Go to https://&lt;router IP&gt;/RgFirewallRL.asp
-- Enable Permitted Connections and Apply
-- Leave it for some hours
-- Execute ./dns-stats -report or go to http://&lt;server ip&gt;:1514
+- Configure your router to send syslog messages to the address of your machine. Be sure that port 514 is open to your internal network.
+- If you have a DWL850 go to https://&lt;router IP&gt;/RgFirewallRL.asp, check Permitted Connections, set the IP address and Apply
+- Leave it running for a while
+- Execute ./dns-stats -report or go to http://&lt;server ip&gt;:8514
 
-If nothing happens and you only see "tick messages" maybe the syslog message sent
-from your router has another format than I'm using for DWG850-4B and you should
-contact me, providing a sample of the message and the model of your router.
+If nothing happens and you only see "tick messages", double check the configuration. If OK, maybe the syslog messages sent
+from your router are in another format than the used by DWG850-4B and you should
+contact me, providing a sample of the message and the model of your router. Removing the rsyslog filter and letting the messages be written to /var/log/syslog can help getting some samples.

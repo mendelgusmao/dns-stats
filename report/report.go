@@ -83,8 +83,6 @@ func Render() string {
 		if hostName, ok = cachedHosts[originAddr]; !ok {
 			if hosts, err := net.LookupAddr(originAddr); err == nil {
 				hostName = hosts[0]
-			} else {
-				hostName = ""
 			}
 
 			cachedHosts[originAddr] = hostName
@@ -100,12 +98,12 @@ func Render() string {
 		for _, fetcher := range fetchers {
 			queries, newMax := fetcher(db, origin)
 
+			if newMax > max {
+				max = newMax
+			}
+
 			for _, query := range queries {
 				prebuffer[i] = query
-
-				if newMax > max {
-					max = newMax
-				}
 
 				i++
 			}
@@ -114,8 +112,10 @@ func Render() string {
 			i++
 		}
 
+		format := fmt.Sprintf("%%s%%-%ds", max+5)
+
 		for index, line := range prebuffer {
-			buffer[index] = fmt.Sprintf(fmt.Sprintf("%%s%%-%ds", max+5), buffer[index], line)
+			buffer[index] = fmt.Sprintf(format, buffer[index], line)
 		}
 	}
 

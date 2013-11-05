@@ -62,11 +62,6 @@ func Render() string {
 		fmt.Println("Error opening database:", err)
 		return ""
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			fmt.Println("Error closing database:", err)
-		}
-	}()
 
 	buffersLength := Lines*len(fetchers) + 2*len(fetchers) + 1
 	start := time.Now()

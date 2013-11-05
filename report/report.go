@@ -26,21 +26,21 @@ const (
 	network = "192.168.0.%"
 	format  = "02/01/06 15:04:05"
 
-	sql = `SELECT DISTINCT fqdn
+	sql = `SELECT DISTINCT address
 		   FROM hosts, queries
 		   WHERE id = origin`
-	sqlTop = `SELECT fqdn, COUNT(*) AS c 
+	sqlTop = `SELECT address, COUNT(*) AS c 
 			  FROM hosts, queries
-			  WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
+			  WHERE origin IN (SELECT id FROM hosts WHERE address LIKE $origin)
 			  AND id = destination
-			  GROUP BY fqdn
+			  GROUP BY address
 			  ORDER BY c DESC
 			  LIMIT $limit`
-	sqlRecent = `SELECT date, fqdn
+	sqlRecent = `SELECT at, address
 				 FROM hosts, queries
-				 WHERE origin IN (SELECT id FROM hosts WHERE fqdn LIKE $origin)
+				 WHERE origin IN (SELECT id FROM hosts WHERE address LIKE $origin)
 				 AND id = destination
-				 ORDER BY date DESC
+				 ORDER BY at DESC
 				 LIMIT $limit`
 )
 
@@ -136,7 +136,7 @@ func fetchOrigins(db *sqlite3.Conn) []string {
 			return nil
 		}
 
-		origins = append(origins, row["fqdn"].(string))
+		origins = append(origins, row["address"].(string))
 	}
 
 	sort.Sort(vector(origins))
@@ -168,7 +168,7 @@ func fetchTopQueries(db *sqlite3.Conn, origin string) ([]string, int) {
 			maxCount = lenCount
 		}
 
-		pairs = append(pairs, []interface{}{count, row["fqdn"]})
+		pairs = append(pairs, []interface{}{count, row["address"]})
 	}
 
 	format := fmt.Sprintf("%%-%dd %%s", maxCount+1)
@@ -200,7 +200,7 @@ func fetchRecentQueries(db *sqlite3.Conn, origin string) ([]string, int) {
 			return queries, 0
 		}
 
-		line := fmt.Sprintf("%s %s", row["date"].(time.Time).Format(format), row["fqdn"])
+		line := fmt.Sprintf("%s %s", row["at"].(time.Time).Format(format), row["address"])
 
 		if len(line) > max {
 			max = len(line)

@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	sqlCreateQueries = "CREATE TABLE IF NOT EXISTS queries (date DATE, origin INTEGER, destination INTEGER)"
-	sqlCreateHosts   = "CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, fqdn TEXT)"
+	sqlCreateQueries = "CREATE TABLE IF NOT EXISTS queries (at DATE, origin INTEGER, destination INTEGER)"
+	sqlCreateHosts   = "CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, address TEXT UNIQUE)"
 )
 
 var (

@@ -11,12 +11,12 @@ import (
 )
 
 const (
-	sqlInsertHost = `INSERT INTO hosts (fqdn)
-					  VALUES ($fqdn)`
+	sqlInsertHost = `INSERT INTO hosts (address)
+					 VALUES ($address)`
 	sqlInsertQuery = `INSERT INTO queries
-					  VALUES ($date, (SELECT id FROM hosts WHERE fqdn = $origin), (SELECT id FROM hosts WHERE fqdn = $destination))`
-	sqlUpdateHost = `UPDATE hosts SET fqdn = $fqdn WHERE fqdn = $fqdn2`
-	regexMessage  = `(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for ([^\[\]]+)`
+					  VALUES ($at, (SELECT id FROM hosts WHERE address = $origin), (SELECT id FROM hosts WHERE address = $destination))`
+	notUnique    = "column address is not unique"
+	regexMessage = `(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for ([^\[\]]+)`
 )
 
 var (
@@ -33,7 +33,7 @@ type handler struct {
 }
 
 type Query struct {
-	date        time.Time
+	at          time.Time
 	origin      string
 	destination string
 }
@@ -57,7 +57,7 @@ func (h *handler) mainLoop() {
 
 		matches := message.FindStringSubmatch(m.Content)
 		query := Query{
-			date:        m.Time,
+			at:          m.Time,
 			origin:      matches[2],
 			destination: matches[3],
 		}
@@ -110,7 +110,7 @@ func Store() {
 			errors = insertHost(db, query.origin)
 
 			args := sqlite3.NamedArgs{
-				"$date":        query.date,
+				"$at":          query.at,
 				"$origin":      query.origin,
 				"$destination": query.destination,
 			}
@@ -139,27 +139,16 @@ func Store() {
 
 }
 
-func insertHost(db *sqlite3.Conn, fqdn string) (errors bool) {
+func insertHost(db *sqlite3.Conn, address string) (errors bool) {
 	args := sqlite3.NamedArgs{
-		"$fqdn":  fqdn,
-		"$fqdn2": fqdn,
+		"$address": address,
 	}
 
-	if err := db.Exec(sqlUpdateHost, args); err != nil {
-		fmt.Println("Error updating:", err, "[", args, "]")
+	if err := db.Exec(sqlInsertHost, args); err != nil && !strings.Contains(err.Error(), notUnique) {
+		fmt.Println("Error inserting host:", err, "[", args, "]")
 		errors = true
 	}
 
-	if db.RowsAffected() == 0 {
-		args := sqlite3.NamedArgs{
-			"$fqdn": fqdn,
-		}
-
-		if err := db.Exec(sqlInsertHost, args); err != nil {
-			fmt.Println("Error inserting host:", err, "[", args, "]")
-			errors = true
-		}
-	}
 	return
 }
 

@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	sqlCreateQueries = "CREATE TABLE IF NOT EXISTS queries (at DATE, origin INTEGER, destination INTEGER)"
-	sqlCreateHosts   = "CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, address TEXT UNIQUE)"
-	sqlCreateIndex   = "CREATE INDEX address_idx ON hosts (address COLLATE NOCASE)"
+	sql = `CREATE TABLE IF NOT EXISTS queries (at DATE, origin INTEGER, destination INTEGER);
+		   CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, address TEXT UNIQUE);
+		   CREATE INDEX IF NOT EXISTS address_idx ON hosts (address COLLATE NOCASE);`
 )
 
 var (
@@ -38,7 +38,7 @@ func init() {
 func main() {
 	flag.Parse()
 
-	initializeDB()
+	setupDB()
 
 	report.ReportPort = reportPort
 	report.DBName = dbname
@@ -69,7 +69,7 @@ func main() {
 	}
 }
 
-func initializeDB() {
+func setupDB() {
 	var db *sqlite3.Conn
 	var err error
 	if db, err = sqlite3.Open(dbname); err != nil {
@@ -77,18 +77,9 @@ func initializeDB() {
 		return
 	}
 
-	if err = db.Exec(sqlCreateQueries); err != nil {
-		fmt.Println("Error creating table queries:", err)
-		return
-	}
-
-	if err = db.Exec(sqlCreateHosts); err != nil {
-		fmt.Println("Error creating table hosts:", err)
-		return
-	}
-
-	if err = db.Exec(sqlCreateHosts); err != nil {
-		fmt.Println("Error creating index:", err)
+	fmt.Println(sql)
+	if err = db.Exec(sql); err != nil {
+		fmt.Println("Error setting up database:", err)
 		return
 	}
 

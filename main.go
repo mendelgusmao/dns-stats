@@ -14,6 +14,7 @@ import (
 const (
 	sqlCreateQueries = "CREATE TABLE IF NOT EXISTS queries (at DATE, origin INTEGER, destination INTEGER)"
 	sqlCreateHosts   = "CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, address TEXT UNIQUE)"
+	sqlCreateIndex   = "CREATE INDEX address_idx ON hosts (address COLLATE NOCASE)"
 )
 
 var (
@@ -77,13 +78,19 @@ func initializeDB() {
 	}
 
 	if err = db.Exec(sqlCreateQueries); err != nil {
-		fmt.Println("Error creating table:", err)
+		fmt.Println("Error creating table queries:", err)
 		return
 	}
 
 	if err = db.Exec(sqlCreateHosts); err != nil {
-		fmt.Println("Error creating table:", err)
+		fmt.Println("Error creating table hosts:", err)
 		return
 	}
+
+	if err = db.Exec(sqlCreateHosts); err != nil {
+		fmt.Println("Error creating index:", err)
+		return
+	}
+
 	db.Close()
 }

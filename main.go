@@ -24,6 +24,7 @@ var (
 	storeInterval string
 	stdOutReport  bool
 	reportLines   int
+	router        string
 )
 
 func init() {
@@ -33,6 +34,7 @@ func init() {
 	flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
 	flag.BoolVar(&stdOutReport, "stdout", false, "Print report to stdout")
 	flag.IntVar(&reportLines, "lines", 25, "Number of records in report (per category)")
+	flag.StringVar(&router, "router", "thomson-dwg850-8b", "The router name and model from which the collector will receive messages")
 }
 
 func main() {
@@ -47,15 +49,25 @@ func main() {
 	if stdOutReport {
 		fmt.Println(report.Render())
 	} else {
-		fmt.Printf("Configuration parameters: \n  db -> %s\n  collector-port -> %s\n  report-port -> %s\n  store-interval -> %s\n",
-			dbname, collectorPort, reportPort, storeInterval)
+		fmt.Printf("Configuration parameters: \n")
+		fmt.Printf("  db -> %s\n", dbname)
+		fmt.Printf("  router -> %s\n", router)
+		fmt.Printf("  collector-port -> %s\n", collectorPort)
+		fmt.Printf("  report-port -> %s\n", reportPort)
+		fmt.Printf("  store-interval -> %s\n", storeInterval)
+		fmt.Printf("  report-lines -> %d\n", reportLines)
 
 		collector.CollectorPort = collectorPort
 		collector.DBName = dbname
 		collector.StoreInterval = storeInterval
+		collector.RouterName = router
 
 		go report.Run()
 		s := collector.Run()
+
+		if s == nil {
+			os.Exit(1)
+		}
 
 		sc := make(chan os.Signal, 2)
 		signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT)
@@ -77,7 +89,6 @@ func setupDB() {
 		return
 	}
 
-	fmt.Println(sql)
 	if err = db.Exec(sql); err != nil {
 		fmt.Println("Error setting up database:", err)
 		return

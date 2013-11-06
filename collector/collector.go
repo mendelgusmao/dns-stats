@@ -2,6 +2,7 @@ package collector
 
 import (
 	"code.google.com/p/go-sqlite/go1/sqlite3"
+	"dns-stats/collector/routers"
 	"fmt"
 	"github.com/ziutek/syslog"
 	"regexp"
@@ -15,17 +16,17 @@ const (
 					 VALUES ($address)`
 	sqlInsertQuery = `INSERT INTO queries
 					  VALUES ($at, (SELECT id FROM hosts WHERE address = $origin), (SELECT id FROM hosts WHERE address = $destination))`
-	notUnique    = "column address is not unique"
-	regexMessage = `(UD|TC)P (.*),.* --> .* ALLOW: Outbound access request \[DNS query for ([^\[\]]+)`
+	notUnique = "column address is not unique"
 )
 
 var (
-	message       = regexp.MustCompile(regexMessage)
 	cache         = make([]Query, 0)
 	mtx           sync.RWMutex
 	DBName        string
 	CollectorPort string
 	StoreInterval string
+	RouterName    string
+	expression    *regexp.Regexp
 )
 
 type handler struct {
@@ -55,11 +56,12 @@ func (h *handler) mainLoop() {
 			break
 		}
 
-		matches := message.FindStringSubmatch(m.Content)
+		origin, destination := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
+
 		query := Query{
 			at:          m.Time,
-			origin:      matches[2],
-			destination: matches[3],
+			origin:      origin,
+			destination: destination,
 		}
 
 		fmt.Println("Received syslog: @", m.Content, "@")
@@ -154,6 +156,12 @@ func insertHost(db *sqlite3.Conn, address string) (errors bool) {
 
 func Run() *syslog.Server {
 	fmt.Println("Initializing syslog collector")
+	expression = routers.Find(RouterName)
+
+	if expression == nil {
+		fmt.Println("Registered routers:", routers.Registered())
+		return nil
+	}
 
 	go cacheStore()
 

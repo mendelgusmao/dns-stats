@@ -24,7 +24,7 @@ var (
 	storeInterval string
 	stdOutReport  bool
 	reportLines   int
-	router        string
+	routers       collector.Sources
 )
 
 func init() {
@@ -34,7 +34,7 @@ func init() {
 	flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
 	flag.BoolVar(&stdOutReport, "stdout", false, "Print report to stdout")
 	flag.IntVar(&reportLines, "lines", 25, "Number of records in report (per category)")
-	flag.StringVar(&router, "router", "thomson-dwg850-8b", "The router name and model from which the collector will receive messages")
+	flag.Var(&routers, "source", "The source and router from which the collector will receive messages (can be set multiple times)")
 }
 
 func main() {
@@ -51,7 +51,7 @@ func main() {
 	} else {
 		fmt.Printf("Configuration parameters: \n")
 		fmt.Printf("  db -> %s\n", dbname)
-		fmt.Printf("  router -> %s\n", router)
+		fmt.Printf("  sources -> %s\n", routers)
 		fmt.Printf("  collector-port -> %s\n", collectorPort)
 		fmt.Printf("  report-port -> %s\n", reportPort)
 		fmt.Printf("  store-interval -> %s\n", storeInterval)
@@ -60,7 +60,7 @@ func main() {
 		collector.CollectorPort = collectorPort
 		collector.DBName = dbname
 		collector.StoreInterval = storeInterval
-		collector.RouterName = router
+		collector.Routers = routers
 
 		go report.Run()
 		s := collector.Run()
@@ -77,7 +77,7 @@ func main() {
 		collector.Store()
 		fmt.Println("Shutdown the server...")
 		s.Shutdown()
-		fmt.Println("Server is down")
+		fmt.Println("Server is down!")
 	}
 }
 

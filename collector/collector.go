@@ -5,6 +5,7 @@ import (
 	"dns-stats/collector/routers"
 	"fmt"
 	"github.com/ziutek/syslog"
+	"net"
 	"regexp"
 	"strings"
 	"sync"
@@ -25,8 +26,8 @@ var (
 	DBName        string
 	CollectorPort string
 	StoreInterval string
-	RouterName    string
-	expression    *regexp.Regexp
+	Routers       = make(Sources, 0)
+	expressions   = make(map[string]*regexp.Regexp)
 )
 
 type handler struct {
@@ -34,6 +35,7 @@ type handler struct {
 }
 
 type Query struct {
+	source      net.Addr
 	at          time.Time
 	origin      string
 	destination string
@@ -56,9 +58,17 @@ func (h *handler) mainLoop() {
 			break
 		}
 
+		expression, ok := expressions[m.Hostname]
+
+		if !ok {
+			fmt.Printf("Source %s is unknown\n", m.Hostname)
+			continue
+		}
+
 		origin, destination := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
 
 		query := Query{
+			source:      m.Source,
 			at:          m.Time,
 			origin:      origin,
 			destination: destination,
@@ -156,11 +166,15 @@ func insertHost(db *sqlite3.Conn, address string) (errors bool) {
 
 func Run() *syslog.Server {
 	fmt.Println("Initializing syslog collector")
-	expression = routers.Find(RouterName)
 
-	if expression == nil {
-		fmt.Println("Registered routers:", routers.Registered())
+	if len(Routers) == 0 {
+		fmt.Println("Not enough sources configured")
 		return nil
+	}
+
+	for _, router := range Routers {
+		expressions[router.Host] = routers.Find(router.Router)
+		fmt.Printf("Using %s (%s) as source\n", router.Host, router.Router)
 	}
 
 	go cacheStore()

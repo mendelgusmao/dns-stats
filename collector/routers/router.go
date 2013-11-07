@@ -48,7 +48,6 @@ func Find(name string) *regexp.Regexp {
 	expression, ok := routers[name]
 
 	if !ok {
-		fmt.Println("Router '%s' not found")
 		return nil
 	}
 

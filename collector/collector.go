@@ -21,13 +21,15 @@ const (
 )
 
 var (
-	cache         = make([]Query, 0)
-	mtx           sync.RWMutex
 	DBName        string
 	CollectorPort string
 	StoreInterval string
 	Sources       = make(SourceParameters, 0)
-	expressions   = make(map[string]*regexp.Regexp)
+	Verbose       bool
+
+	expressions = make(map[string]*regexp.Regexp)
+	cache       = make([]Query, 0)
+	mtx         sync.RWMutex
 )
 
 type handler struct {
@@ -61,15 +63,20 @@ func (h *handler) mainLoop() {
 		expression, ok := expressions[m.Hostname]
 
 		if !ok {
-			fmt.Printf("Source %s is unknown\n", m.Hostname)
+			if Verbose {
+				fmt.Printf("Source %s is unknown\n", m.Hostname)
+			}
+
 			continue
 		}
 
 		origin, destination, err := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
 
 		if err != nil {
-			fmt.Println(err)
-			fmt.Println("Received syslog: @", m.Content, "@")
+			if Verbose {
+				fmt.Println(err)
+				fmt.Println("Received syslog: @", m.Content, "@")
+			}
 			continue
 		}
 
@@ -80,14 +87,16 @@ func (h *handler) mainLoop() {
 			destination: destination,
 		}
 
-		fmt.Println("Received syslog: @", m.Content, "@")
-		fmt.Println("Generated query: @", query, "@")
+		if Verbose {
+			fmt.Println("Received syslog: @", m.Content, "@")
+			fmt.Println("Generated query: @", query, "@")
+		}
 
 		mtx.Lock()
 		cache = append(cache, query)
 		mtx.Unlock()
 	}
-	fmt.Println("Exit handler")
+
 	h.End()
 }
 
@@ -96,7 +105,9 @@ func cacheStore() {
 
 	c := time.Tick(interval)
 	for now := range c {
-		fmt.Println("tick:", now)
+		if Verbose {
+			fmt.Println("tick:", now)
+		}
 		Store()
 	}
 }

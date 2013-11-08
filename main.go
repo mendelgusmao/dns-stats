@@ -24,6 +24,7 @@ var (
 	storeInterval string
 	stdOutReport  bool
 	reportLines   int
+	verbose       bool
 	sources       collector.SourceParameters
 )
 
@@ -33,6 +34,7 @@ func init() {
 	flag.StringVar(&reportPort, "report-port", ":8514", "Address for report server to listen to")
 	flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
 	flag.BoolVar(&stdOutReport, "stdout", false, "Print report to stdout")
+	flag.BoolVar(&verbose, "verbose", false, "Display received syslog messages")
 	flag.IntVar(&reportLines, "lines", 25, "Number of records in report (per category)")
 	flag.Var(&sources, "source", "The source and router from which the collector will receive messages (can be set multiple times)")
 }
@@ -61,6 +63,7 @@ func main() {
 		collector.DBName = dbname
 		collector.StoreInterval = storeInterval
 		collector.Sources = sources
+		collector.Verbose = verbose
 
 		go report.Run()
 		s := collector.Run()

@@ -24,7 +24,7 @@ var (
 	storeInterval string
 	stdOutReport  bool
 	reportLines   int
-	routers       collector.Sources
+	sources       collector.SourceParameters
 )
 
 func init() {
@@ -34,7 +34,7 @@ func init() {
 	flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
 	flag.BoolVar(&stdOutReport, "stdout", false, "Print report to stdout")
 	flag.IntVar(&reportLines, "lines", 25, "Number of records in report (per category)")
-	flag.Var(&routers, "source", "The source and router from which the collector will receive messages (can be set multiple times)")
+	flag.Var(&sources, "source", "The source and router from which the collector will receive messages (can be set multiple times)")
 }
 
 func main() {
@@ -51,7 +51,7 @@ func main() {
 	} else {
 		fmt.Printf("Configuration parameters: \n")
 		fmt.Printf("  db -> %s\n", dbname)
-		fmt.Printf("  sources -> %s\n", routers)
+		fmt.Printf("  sources -> %s\n", sources)
 		fmt.Printf("  collector-port -> %s\n", collectorPort)
 		fmt.Printf("  report-port -> %s\n", reportPort)
 		fmt.Printf("  store-interval -> %s\n", storeInterval)
@@ -60,7 +60,7 @@ func main() {
 		collector.CollectorPort = collectorPort
 		collector.DBName = dbname
 		collector.StoreInterval = storeInterval
-		collector.Routers = routers
+		collector.Sources = sources
 
 		go report.Run()
 		s := collector.Run()

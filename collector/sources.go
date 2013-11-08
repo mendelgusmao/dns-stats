@@ -7,18 +7,18 @@ import (
 	"strings"
 )
 
-type Source struct {
+type SourceParameter struct {
 	Host   string
 	Router string
 }
 
-type Sources []Source
+type SourceParameters []SourceParameter
 
-func (s *Sources) String() string {
+func (s *SourceParameters) String() string {
 	return fmt.Sprint(*s)
 }
 
-func (s *Sources) Set(value string) error {
+func (s *SourceParameters) Set(value string) error {
 	for _, source := range strings.Split(value, ",") {
 		pair := strings.Split(source, ":")
 
@@ -30,7 +30,7 @@ func (s *Sources) Set(value string) error {
 			return errors.New(fmt.Sprintf("Router '%s' is not registered", pair[1]))
 		}
 
-		*s = append(*s, Source{
+		*s = append(*s, SourceParameter{
 			Host:   pair[0],
 			Router: pair[1],
 		})

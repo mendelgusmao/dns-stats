@@ -26,7 +26,7 @@ var (
 	DBName        string
 	CollectorPort string
 	StoreInterval string
-	Routers       = make(Sources, 0)
+	Sources       = make(SourceParameters, 0)
 	expressions   = make(map[string]*regexp.Regexp)
 )
 
@@ -173,12 +173,12 @@ func insertHost(db *sqlite3.Conn, address string) (errors bool) {
 func Run() *syslog.Server {
 	fmt.Println("Initializing syslog collector")
 
-	if len(Routers) == 0 {
+	if len(Sources) == 0 {
 		fmt.Println("Not enough sources configured")
 		return nil
 	}
 
-	for _, router := range Routers {
+	for _, router := range Sources {
 		expressions[router.Host] = routers.Find(router.Router)
 		fmt.Printf("Using %s (%s) as source\n", router.Host, router.Router)
 	}

@@ -42,7 +42,7 @@ type Query struct {
 }
 
 func filter(m *syslog.Message) bool {
-	return strings.Contains(m.Content, "DNS query")
+	return true
 }
 
 func newHandler() *handler {
@@ -65,7 +65,13 @@ func (h *handler) mainLoop() {
 			continue
 		}
 
-		origin, destination := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
+		origin, destination, err := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
+
+		if err != nil {
+			fmt.Println(err)
+			fmt.Println("Received syslog: @", m.Content, "@")
+			continue
+		}
 
 		query := Query{
 			source:      m.Source,

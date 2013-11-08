@@ -1,13 +1,15 @@
 package routers
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 )
 
 var (
-	routers = make(map[string]*regexp.Regexp)
+	routers   = make(map[string]*regexp.Regexp)
+	noMatches = errors.New("Couldn't extract data from message")
 )
 
 type Router interface {
@@ -54,7 +56,12 @@ func Find(name string) *regexp.Regexp {
 	return expression
 }
 
-func Extract(expression *regexp.Regexp, matches []string) (origin, destination string) {
+func Extract(expression *regexp.Regexp, matches []string) (origin, destination string, err error) {
+	if len(matches) < 2 {
+		err = noMatches
+		return
+	}
+
 	for index, name := range expression.SubexpNames() {
 		if name == "origin" {
 			origin = matches[index]

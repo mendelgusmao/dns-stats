@@ -24,7 +24,7 @@ rsyslog example:
 - At a terminal, clone this repo and execute *go build && ./dns-stats -source &lt;router ip&gt;:&lt;router name&gt;* 
 - Configure your router to send syslog messages to the address of your machine. Be sure that port 514 is open to your internal network.
 - Leave it running for a while
-- Execute ./dns-stats -report or go to http://&lt;server ip&gt;:8514
+- Execute ./dns-stats -report or go to http://&lt;server ip&gt;:8514/dns
 
 If nothing happens and you only see "tick messages", double check the configuration.
 If OK, maybe the syslog messages sent from your router are in another format than the used by DWG850-4B and you should fork this repo and add your router definition to collector/routers, following the Router interface:

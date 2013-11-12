@@ -138,17 +138,16 @@ func defineFrom(period string) (from int64) {
 
 	switch period {
 	case "day":
-		from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).Unix()
+		from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
 		return
 	case "week":
-		week, _ := time.ParseDuration("168h")
-		weekAgo := now.Add(-week)
-		from = time.Date(weekAgo.Year(), weekAgo.Month(), weekAgo.Day(), 0, 0, 0, 0, time.UTC).Unix()
+		from = time.Date(now.Year(), now.Month(), now.Day()-int(now.Weekday()), 0, 0, 0, 0, now.Location()).Unix()
 		return
 	case "month":
-		month, _ := time.ParseDuration("720h")
-		monthAgo := now.Add(-month)
-		from = time.Date(monthAgo.Year(), monthAgo.Month(), monthAgo.Day(), 0, 0, 0, 0, time.UTC).Unix()
+		from = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Unix()
+		return
+	case "year":
+		from = time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, now.Location()).Unix()
 		return
 	}
 

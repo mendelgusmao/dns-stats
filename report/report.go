@@ -33,7 +33,13 @@ func Run() {
 
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/plain")
-		fmt.Fprintln(w, Render(r.URL.RawQuery))
+
+		if len(r.URL.RawQuery) == 0 {
+			w.Header().Add("Location", "/dns?day")
+			w.WriteHeader(http.StatusMovedPermanently)
+		} else {
+			fmt.Fprintln(w, Render(r.URL.RawQuery))
+		}
 	})
 
 	fmt.Println(http.ListenAndServe(ReportPort, nil))

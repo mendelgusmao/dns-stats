@@ -47,14 +47,7 @@ func Render(period string) string {
 		return ""
 	}
 
-	duration, err := time.ParseDuration(period)
-
-	if err != nil {
-		fmt.Printf("Invalid period '%s'. Using default: 24h\n", period)
-		duration, _ = time.ParseDuration("24h")
-	}
-
-	from := time.Now().Add(-duration).Unix()
+	from := defineFrom(period)
 
 	buffersLength := Lines*len(usedFetchers) + 2*len(usedFetchers) + 1
 	start := time.Now()
@@ -132,4 +125,33 @@ func fetchOrigins(db *sqlite3.Conn, from int64) []string {
 	newOrigins = append(newOrigins, origins...)
 
 	return newOrigins
+}
+
+func defineFrom(period string) (from int64) {
+	now := time.Now()
+
+	switch period {
+	case "day":
+		from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).Unix()
+		return
+	case "week":
+		week, _ := time.ParseDuration("168h")
+		weekAgo := now.Add(-week)
+		from = time.Date(weekAgo.Year(), weekAgo.Month(), weekAgo.Day(), 0, 0, 0, 0, time.UTC).Unix()
+		return
+	case "month":
+		month, _ := time.ParseDuration("720h")
+		monthAgo := now.Add(-month)
+		from = time.Date(monthAgo.Year(), monthAgo.Month(), monthAgo.Day(), 0, 0, 0, 0, time.UTC).Unix()
+		return
+	}
+
+	duration, err := time.ParseDuration(period)
+	if err != nil {
+		fmt.Printf("Invalid period '%s'. Using default: 24h\n", period)
+		duration, _ = time.ParseDuration("24h")
+	}
+
+	from = time.Now().Add(-duration).Unix()
+	return
 }

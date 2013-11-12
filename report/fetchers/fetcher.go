@@ -6,5 +6,5 @@ import (
 
 type Fetcher interface {
 	sql() string
-	Fetch(*sqlite3.Conn, string, int) ([]string, int)
+	Fetch(*sqlite3.Conn, string, int64, int) ([]string, int)
 }

@@ -23,8 +23,9 @@ var (
 const (
 	network = "192.168.0.%"
 	sql     = `SELECT DISTINCT address
-		   FROM hosts, queries
-		   WHERE id = origin`
+			   FROM hosts, queries
+			   WHERE at >= $from
+			   AND id = origin`
 )
 
 func Run() {
@@ -32,13 +33,13 @@ func Run() {
 
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/plain")
-		fmt.Fprintln(w, Render())
+		fmt.Fprintln(w, Render(r.URL.RawQuery))
 	})
 
 	fmt.Println(http.ListenAndServe(ReportPort, nil))
 }
 
-func Render() string {
+func Render(period string) string {
 	var err error
 	var db *sqlite3.Conn
 	if db, err = sqlite3.Open(DBName); err != nil {
@@ -46,10 +47,19 @@ func Render() string {
 		return ""
 	}
 
+	duration, err := time.ParseDuration(period)
+
+	if err != nil {
+		fmt.Printf("Invalid period '%s'. Using default: 24h\n", period)
+		duration, _ = time.ParseDuration("24h")
+	}
+
+	from := time.Now().Add(-duration).Unix()
+
 	buffersLength := Lines*len(usedFetchers) + 2*len(usedFetchers) + 1
 	start := time.Now()
 	buffer := make([]string, buffersLength)
-	origins := fetchOrigins(db)
+	origins := fetchOrigins(db, from)
 
 	for _, origin := range origins {
 		prebuffer := make([]string, buffersLength)
@@ -74,7 +84,7 @@ func Render() string {
 		i := 2
 
 		for _, fetcher := range usedFetchers {
-			queries, newMax := fetcher.Fetch(db, origin, Lines)
+			queries, newMax := fetcher.Fetch(db, origin, from, Lines)
 
 			if newMax > max {
 				max = newMax
@@ -102,10 +112,10 @@ func Render() string {
 	return strings.Join(buffer, "\n")
 }
 
-func fetchOrigins(db *sqlite3.Conn) []string {
+func fetchOrigins(db *sqlite3.Conn, from int64) []string {
 	origins := make([]string, 0)
 
-	for stmt, err := db.Query(sql); err == nil; err = stmt.Next() {
+	for stmt, err := db.Query(sql, from); err == nil; err = stmt.Next() {
 		row := make(sqlite3.RowMap)
 		errs := stmt.Scan(row)
 

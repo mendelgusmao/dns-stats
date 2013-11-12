@@ -191,7 +191,6 @@ func Run() *syslog.Server {
 
 	for _, router := range Sources {
 		expressions[router.Host] = routers.Find(router.Router)
-		fmt.Printf("Using %s (%s) as source\n", router.Host, router.Router)
 	}
 
 	go cacheStore()

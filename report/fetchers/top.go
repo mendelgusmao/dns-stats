@@ -11,20 +11,21 @@ type Top struct{}
 func (_ Top) sql() string {
 	return `SELECT address, COUNT(*) AS c 
 			FROM hosts, queries
-			WHERE origin IN (SELECT id FROM hosts WHERE address LIKE $origin)
+			WHERE at >= $from
+			AND origin IN (SELECT id FROM hosts WHERE address LIKE $origin)
 			AND id = destination
 			GROUP BY address
 			ORDER BY c DESC
 			LIMIT $limit`
 }
 
-func (t Top) Fetch(db *sqlite3.Conn, origin string, lines int) ([]string, int) {
+func (t Top) Fetch(db *sqlite3.Conn, origin string, from int64, lines int) ([]string, int) {
 	queries := make([]string, lines)
 	max := 0
 	pairs := make([][]interface{}, 0)
 	maxCount := 0
 
-	for stmt, err := db.Query(t.sql(), origin, lines); err == nil; err = stmt.Next() {
+	for stmt, err := db.Query(t.sql(), from, origin, lines); err == nil; err = stmt.Next() {
 		row := make(sqlite3.RowMap)
 		errs := stmt.Scan(row)
 

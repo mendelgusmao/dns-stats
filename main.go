@@ -22,6 +22,7 @@ var (
 	collectorPort string
 	reportPort    string
 	storeInterval string
+	period        string
 	stdOutReport  bool
 	reportLines   int
 	verbose       bool
@@ -33,6 +34,7 @@ func init() {
 	flag.StringVar(&collectorPort, "collector-port", ":1514", "Address for syslog collector to listen to")
 	flag.StringVar(&reportPort, "report-port", ":8514", "Address for report server to listen to")
 	flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
+	flag.StringVar(&period, "period", "720h", "Defines the report period")
 	flag.BoolVar(&stdOutReport, "stdout", false, "Print report to stdout")
 	flag.BoolVar(&verbose, "verbose", false, "Display received syslog messages")
 	flag.IntVar(&reportLines, "lines", 25, "Number of records in report (per category)")
@@ -49,7 +51,7 @@ func main() {
 	report.Lines = reportLines
 
 	if stdOutReport {
-		fmt.Println(report.Render())
+		fmt.Println(report.Render(period))
 	} else {
 		fmt.Printf("Configuration parameters: \n")
 		fmt.Printf("  db -> %s\n", dbname)

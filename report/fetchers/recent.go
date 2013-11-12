@@ -15,18 +15,19 @@ type Recent struct{}
 func (_ Recent) sql() string {
 	return `SELECT at, address
 			FROM hosts, queries
-			WHERE origin IN (SELECT id FROM hosts WHERE address LIKE $origin)
+			WHERE at >= $from
+			AND origin IN (SELECT id FROM hosts WHERE address LIKE $origin)
 			AND id = destination
 			ORDER BY at DESC
 			LIMIT $limit`
 }
 
-func (r Recent) Fetch(db *sqlite3.Conn, origin string, lines int) ([]string, int) {
+func (r Recent) Fetch(db *sqlite3.Conn, origin string, from int64, lines int) ([]string, int) {
 	queries := make([]string, lines)
 	max := 0
 	index := 0
 
-	for stmt, err := db.Query(r.sql(), origin, lines); err == nil; err = stmt.Next() {
+	for stmt, err := db.Query(r.sql(), from, origin, lines); err == nil; err = stmt.Next() {
 		row := make(sqlite3.RowMap)
 		errs := stmt.Scan(row)
 

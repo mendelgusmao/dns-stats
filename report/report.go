@@ -26,6 +26,7 @@ const (
 			   FROM hosts, queries
 			   WHERE at >= $from
 			   AND id = origin`
+	format = "02/01/06 15:04:05"
 )
 
 func Run() {
@@ -58,7 +59,7 @@ func Render(period string) string {
 	buffersLength := Lines*len(usedFetchers) + 2*len(usedFetchers) + 1
 	start := time.Now()
 	buffer := make([]string, buffersLength)
-	origins := fetchOrigins(db, from)
+	origins := fetchOrigins(db, from.Unix())
 
 	for _, origin := range origins {
 		prebuffer := make([]string, buffersLength)
@@ -83,7 +84,7 @@ func Render(period string) string {
 		i := 2
 
 		for _, fetcher := range usedFetchers {
-			queries, newMax := fetcher.Fetch(db, origin, from, Lines)
+			queries, newMax := fetcher.Fetch(db, origin, from.Unix(), Lines)
 
 			if newMax > max {
 				max = newMax
@@ -106,7 +107,11 @@ func Render(period string) string {
 		}
 	}
 
-	buffer[len(buffer)-1] = fmt.Sprintf("took %f seconds to generate", time.Now().Sub(start).Seconds())
+	buffer[len(buffer)-1] = fmt.Sprintf(
+		"%s ~ %s // took %f seconds to generate",
+		from.Format(format),
+		time.Now().Format(format),
+		time.Now().Sub(start).Seconds())
 
 	return strings.Join(buffer, "\n")
 }
@@ -133,21 +138,21 @@ func fetchOrigins(db *sqlite3.Conn, from int64) []string {
 	return newOrigins
 }
 
-func defineFrom(period string) (from int64) {
+func defineFrom(period string) (from time.Time) {
 	now := time.Now()
 
 	switch period {
 	case "day":
-		from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
+		from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		return
 	case "week":
-		from = time.Date(now.Year(), now.Month(), now.Day()-int(now.Weekday()), 0, 0, 0, 0, now.Location()).Unix()
+		from = time.Date(now.Year(), now.Month(), now.Day()-int(now.Weekday()), 0, 0, 0, 0, now.Location())
 		return
 	case "month":
-		from = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Unix()
+		from = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 		return
 	case "year":
-		from = time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, now.Location()).Unix()
+		from = time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, now.Location())
 		return
 	}
 
@@ -157,6 +162,6 @@ func defineFrom(period string) (from int64) {
 		duration, _ = time.ParseDuration("24h")
 	}
 
-	from = time.Now().Add(-duration).Unix()
+	from = time.Now().Add(-duration)
 	return
 }

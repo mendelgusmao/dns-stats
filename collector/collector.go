@@ -3,6 +3,7 @@ package collector
 import (
 	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"dns-stats/collector/routers"
+	"dns-stats/database"
 	"fmt"
 	"github.com/ziutek/syslog"
 	"net"
@@ -12,35 +13,19 @@ import (
 	"time"
 )
 
-const (
-	sqlInsertHost = `INSERT INTO hosts (address)
-					 VALUES ($address)`
-	sqlInsertQuery = `INSERT INTO queries
-					  VALUES ($at, (SELECT id FROM hosts WHERE address = $origin), (SELECT id FROM hosts WHERE address = $destination))`
-	notUnique = "column address is not unique"
-)
-
 var (
-	DBName        string
 	CollectorPort string
 	StoreInterval string
 	Sources       = make(SourceParameters, 0)
 	Verbose       bool
 
 	expressions = make(map[string]*regexp.Regexp)
-	cache       = make([]Query, 0)
+	cache       = make([]database.Query, 0)
 	mtx         sync.RWMutex
 )
 
 type handler struct {
 	*syslog.BaseHandler
-}
-
-type Query struct {
-	source      net.Addr
-	at          time.Time
-	origin      string
-	destination string
 }
 
 func filter(m *syslog.Message) bool {
@@ -70,26 +55,67 @@ func (h *handler) mainLoop() {
 			continue
 		}
 
-		origin, destination, err := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
+		sourceAddr, originAddr, destinationAddr, err := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
 
 		if err != nil {
 			if Verbose {
 				fmt.Println(err)
-				fmt.Println("Received syslog: @", m.Content, "@")
+				fmt.Println("Received syslog: '", m.Content, "'")
 			}
 			continue
 		}
 
-		query := Query{
-			source:      m.Source,
-			at:          m.Time,
-			origin:      origin,
-			destination: destination,
+		// query := database.Query{
+		// 	Source:      m.Source,
+		// 	At:          m.Time,
+		// 	origin:      origin,
+		// 	destination: destination,
+		// }
+
+		sourceIP := net.ParseIP(sourceAddr)
+
+		if sourceIP == nil {
+			fmt.Println("Error parsing source IP", sourceAddr)
+			return
+		}
+
+		originIP := net.ParseIP(originAddr)
+
+		if originIP == nil {
+			fmt.Println("Error parsing origin IP", originAddr)
+			return
+		}
+
+		mac := "00:00:00:00:00:00"
+		source := database.DB.SelectOne("SELECT * FROM machines WHERE mac = ? AND ip = ?", mac, sourceIP)
+
+		if err != nil {
+			fmt.Println("Error selecting source machine:", err)
+		}
+
+		origin := database.DB.SelectOne("SELECT * FROM machines WHERE mac = ? and ip = ?", mac, originIP)
+
+		if err != nil {
+			fmt.Println("Error selecting origin machine:", err)
+		}
+
+		destination := database.DB.SelectOne("SELECT * FROM hosts WHERE address = ?", destinationAddr)
+
+		if err != nil {
+			fmt.Println("Error selecting host:", err)
+		}
+
+		query := database.Query{
+			At:          m.Time,
+			Source:      machine,
+			SourceIP:    net.IP,
+			Origin:      database.Host,
+			Destination: database.Host,
 		}
 
 		if Verbose {
-			fmt.Println("Received syslog: @", m.Content, "@")
-			fmt.Println("Generated query: @", query, "@")
+			fmt.Println("Received syslog: '", m.Content, "'")
+			fmt.Println("Generated query: '", query, "'")
 		}
 
 		mtx.Lock()

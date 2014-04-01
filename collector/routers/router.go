@@ -22,13 +22,13 @@ func register(router Router) {
 	captures := 0
 
 	for _, name := range expression.SubexpNames() {
-		if name == "origin" || name == "destination" {
+		if name == "source" || name == "origin" || name == "destination" {
 			captures++
 		}
 	}
 
-	if captures != 2 {
-		fmt.Printf("Router %s is not going to be registered: absence or excess of named captures (origin, destination)\n", router.name())
+	if captures != 3 {
+		fmt.Printf("Router %s is not going to be registered: absence or excess of named captures (source, origin, destination)\n", router.name())
 		return
 	}
 
@@ -56,7 +56,7 @@ func Find(name string) *regexp.Regexp {
 	return expression
 }
 
-func Extract(expression *regexp.Regexp, matches []string) (origin, destination string, err error) {
+func Extract(expression *regexp.Regexp, matches []string) (source, origin, destination string, err error) {
 	if len(matches) < 2 {
 		err = noMatches
 		return
@@ -69,6 +69,10 @@ func Extract(expression *regexp.Regexp, matches []string) (origin, destination s
 
 		if name == "destination" {
 			destination = matches[index]
+		}
+
+		if name == "source" {
+			source = matches[index]
 		}
 	}
 

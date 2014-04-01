@@ -1,8 +1,8 @@
 package main
 
 import (
-	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"dns-stats/collector"
+	"dns-stats/database"
 	"dns-stats/report"
 	"flag"
 	"fmt"
@@ -11,14 +11,9 @@ import (
 	"syscall"
 )
 
-const (
-	sql = `CREATE TABLE IF NOT EXISTS queries (at DATE, origin INTEGER, destination INTEGER);
-		   CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, address TEXT UNIQUE);
-		   CREATE INDEX IF NOT EXISTS address_idx ON hosts (address COLLATE NOCASE);`
-)
-
 var (
-	dbname        string
+	dbDriver      string
+	dbURI         string
 	collectorPort string
 	reportPort    string
 	storeInterval string
@@ -30,7 +25,8 @@ var (
 )
 
 func init() {
-	flag.StringVar(&dbname, "db", os.Getenv("HOME")+"/dns.sqlite3", "Absolute path to SQLite3 database")
+	flag.StringVar(&dbDriver, "db-driver", "sqlite3", "Database driver (mysql, postgres or sqlite3)")
+	flag.StringVar(&dbURI, "db-uri", os.Getenv("HOME")+"/dns.sqlite3", "Database URI")
 	flag.StringVar(&collectorPort, "collector-port", ":1514", "Address for syslog collector to listen to")
 	flag.StringVar(&reportPort, "report-port", ":8514", "Address for report server to listen to")
 	flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
@@ -44,17 +40,19 @@ func init() {
 func main() {
 	flag.Parse()
 
-	setupDB()
+	if err := database.Init(dbDriver, dbURI); err != nil {
+		fmt.Println("Error initializing database:", err)
+		os.Exit(1)
+	}
 
 	report.ReportPort = reportPort
-	report.DBName = dbname
 	report.Lines = reportLines
 
 	if stdOutReport {
 		fmt.Println(report.Render(period))
 	} else {
 		fmt.Printf("Configuration parameters: \n")
-		fmt.Printf("  db -> %s\n", dbname)
+		fmt.Printf("  db -> (%s) %s\n", dbDriver, dbURI)
 		fmt.Printf("  sources -> %s\n", sources)
 		fmt.Printf("  collector-port -> %s\n", collectorPort)
 		fmt.Printf("  report-port -> %s\n", reportPort)
@@ -62,7 +60,6 @@ func main() {
 		fmt.Printf("  report-lines -> %d\n", reportLines)
 
 		collector.CollectorPort = collectorPort
-		collector.DBName = dbname
 		collector.StoreInterval = storeInterval
 		collector.Sources = sources
 		collector.Verbose = verbose
@@ -78,26 +75,10 @@ func main() {
 		signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT)
 		<-sc
 
-		fmt.Println("Storing...")
+		fmt.Println("Storing cached queries")
 		collector.Store()
-		fmt.Println("Shutdown the server...")
+		fmt.Println("Shutting down the server")
 		s.Shutdown()
 		fmt.Println("Server is down!")
 	}
-}
-
-func setupDB() {
-	var db *sqlite3.Conn
-	var err error
-	if db, err = sqlite3.Open(dbname); err != nil {
-		fmt.Println("Error opening database:", err)
-		return
-	}
-
-	if err = db.Exec(sql); err != nil {
-		fmt.Println("Error setting up database:", err)
-		return
-	}
-
-	db.Close()
 }

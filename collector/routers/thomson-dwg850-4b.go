@@ -7,7 +7,7 @@ func (_ Thomson_DWG850_4B) name() string {
 }
 
 func (_ Thomson_DWG850_4B) message() string {
-	return `(UD|TC)P (?P<origin>.*),.* --> .* ALLOW: Outbound access request \[DNS query for (?P<destination>[^\[\]]+)`
+	return `\[Host (?P<source>[^\[\]]+) (UD|TC)P (?P<origin>.*),.* --> .* ALLOW: Outbound access request \[DNS query for (?P<destination>[^\[\]]+)`
 }
 
 func init() {

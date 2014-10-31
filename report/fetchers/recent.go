@@ -1,9 +1,10 @@
 package fetchers
 
 import (
-	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"fmt"
 	"time"
+
+	"code.google.com/p/go-sqlite/go1/sqlite3"
 )
 
 const (

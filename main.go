@@ -1,40 +1,47 @@
 package main
 
 import (
-	"code.google.com/p/go-sqlite/go1/sqlite3"
-	"dns-stats/collector"
-	"dns-stats/report"
 	"flag"
 	"fmt"
+	"gorm"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/MendelGusmao/dns-stats/collector"
+	"github.com/MendelGusmao/dns-stats/model"
+	"github.com/MendelGusmao/dns-stats/report"
+
+	"github.com/MendelGusmao/envconfig"
 )
 
 const (
 	sql = `CREATE TABLE IF NOT EXISTS queries (at DATE, origin INTEGER, destination INTEGER);
+		   CREATE TABLE IF NOT EXISTS machines (id INTEGER PRIMARY KEY, address TEXT, mac TEXT);
 		   CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, address TEXT UNIQUE);
-		   CREATE INDEX IF NOT EXISTS address_idx ON hosts (address COLLATE NOCASE);`
+		   CREATE INDEX IF NOT EXISTS address_idx ON hosts (address COLLATE NOCASE);
+		   CREATE INDEX IF NOT EXISTS machines_address_idx ON hosts (address COLLATE NOCASE);
+		   CREATE INDEX IF NOT EXISTS machines_mac_idx ON hosts (mac COLLATE NOCASE);`
 )
 
 var (
-	dbname        string
-	collectorPort string
-	reportPort    string
-	storeInterval string
-	period        string
-	stdOutReport  bool
-	reportLines   int
-	verbose       bool
-	sources       collector.SourceParameters
+	// dbname        string
+	// collectorPort string
+	// reportPort    string
+	// storeInterval string
+	period       string
+	stdOutReport bool
+	reportLines  int
+	verbose      bool
+	sources      collector.SourceParameters
 )
 
 func init() {
-	flag.StringVar(&dbname, "db", os.Getenv("HOME")+"/dns.sqlite3", "Absolute path to SQLite3 database")
-	flag.StringVar(&collectorPort, "collector-port", ":1514", "Address for syslog collector to listen to")
-	flag.StringVar(&reportPort, "report-port", ":8514", "Address for report server to listen to")
-	flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
-	flag.StringVar(&period, "period", "720h", "Defines the report period")
+	// flag.StringVar(&dbname, "db", os.Getenv("HOME")+"/dns.sqlite3", "Absolute path to SQLite3 database")
+	// flag.StringVar(&collectorPort, "collector-port", ":1514", "Address for syslog collector to listen to")
+	// flag.StringVar(&reportPort, "report-port", ":8514", "Address for report server to listen to")
+	// flag.StringVar(&storeInterval, "store-interval", "1m", "Defines the interval for cached queries storage")
+	// flag.StringVar(&period, "period", "720h", "Defines the report period")
 	flag.BoolVar(&stdOutReport, "stdout", false, "Print report to stdout")
 	flag.BoolVar(&verbose, "verbose", false, "Display received syslog messages")
 	flag.IntVar(&reportLines, "lines", 25, "Number of records in report (per category)")
@@ -42,9 +49,10 @@ func init() {
 }
 
 func main() {
-	flag.Parse()
+	envconfig.Process("dns_stats", &config.DNSStats)
+	buildDatabase()
 
-	setupDB()
+	r := rep
 
 	report.ReportPort = reportPort
 	report.DBName = dbname
@@ -86,18 +94,15 @@ func main() {
 	}
 }
 
-func setupDB() {
-	var db *sqlite3.Conn
-	var err error
-	if db, err = sqlite3.Open(dbname); err != nil {
-		fmt.Println("Error opening database:", err)
-		return
+func buildDatabase() {
+	db, err := gorm.Open(config.Ephemeris.Database.Driver, config.Ephemeris.Database.URL)
+	defer db.Close()
+
+	if err != nil {
+		panic(err)
 	}
 
-	if err = db.Exec(sql); err != nil {
-		fmt.Println("Error setting up database:", err)
-		return
+	for _, err := range model.BuildDatabase(db) {
+		fmt.Println("Error building database:", err)
 	}
-
-	db.Close()
 }

@@ -17,23 +17,23 @@ type Router interface {
 	message() string
 }
 
-func register(router Router) {
-	expression := regexp.MustCompile(router.message())
+func Register(routerName, message string) {
+	re := regexp.MustCompile(message)
 	captures := 0
 
-	for _, name := range expression.SubexpNames() {
+	for _, name := range re.SubexpNames() {
 		if name == "origin" || name == "destination" {
 			captures++
 		}
 	}
 
 	if captures != 2 {
-		fmt.Printf("Router %s is not going to be registered: absence or excess of named captures (origin, destination)\n", router.name())
+		fmt.Printf("Router %s is not going to be registered: absence or excess of named captures (origin, destination)\n", routerName)
 		return
 	}
 
 	fmt.Printf("Registering router %s\n", router.name())
-	routers[router.name()] = expression
+	routers[router.name()] = re
 }
 
 func Registered() string {
@@ -47,13 +47,13 @@ func Registered() string {
 }
 
 func Find(name string) *regexp.Regexp {
-	expression, ok := routers[name]
+	re, ok := routers[name]
 
 	if !ok {
 		return nil
 	}
 
-	return expression
+	return re
 }
 
 func Extract(expression *regexp.Regexp, matches []string) (origin, destination string, err error) {

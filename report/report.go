@@ -1,14 +1,17 @@
 package report
 
 import (
-	"code.google.com/p/go-sqlite/go1/sqlite3"
-	"dns-stats/report/fetchers"
 	"fmt"
+	"gorm"
 	"net"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/MendelGusmao/dns-stats/report/fetchers"
+
+	"code.google.com/p/go-sqlite/go1/sqlite3"
 )
 
 var (
@@ -28,6 +31,12 @@ const (
 			   AND id = origin`
 	format = "02/01/06 15:04:05"
 )
+
+type Report struct {
+	DB    *gorm.DB
+	Port  int
+	Lines int
+}
 
 func Run() {
 	fmt.Println("Initializing HTTP stats")

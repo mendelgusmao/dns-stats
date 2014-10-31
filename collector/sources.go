@@ -1,10 +1,11 @@
 package collector
 
 import (
-	"dns-stats/collector/routers"
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/MendelGusmao/dns-stats/collector/routers"
 )
 
 type SourceParameter struct {

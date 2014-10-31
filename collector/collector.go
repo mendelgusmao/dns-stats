@@ -1,46 +1,51 @@
 package collector
 
 import (
-	"code.google.com/p/go-sqlite/go1/sqlite3"
-	"dns-stats/collector/routers"
 	"fmt"
-	"github.com/ziutek/syslog"
-	"net"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"gorm"
+
+	"github.com/MendelGusmao/dns-stats/arp"
+	"github.com/MendelGusmao/dns-stats/collector/routers"
+
+	"code.google.com/p/go-sqlite/go1/sqlite3"
+	"github.com/ziutek/syslog"
 )
 
 const (
 	sqlInsertHost = `INSERT INTO hosts (address)
 					 VALUES ($address)`
+	sqlInsertMachine = `INSERT INTO machines (address, mac)
+					    VALUES ($address, $mac)`
 	sqlInsertQuery = `INSERT INTO queries
-					  VALUES ($at, (SELECT id FROM hosts WHERE address = $origin), (SELECT id FROM hosts WHERE address = $destination))`
+					  VALUES (
+					  	$at, 
+					  	(SELECT id FROM machines WHERE address = $origin AND mac = $origin_mac), 
+					  	(SELECT id FROM hosts WHERE address = $destination)
+				  	  )`
 	notUnique = "column address is not unique"
 )
 
 var (
-	DBName        string
-	CollectorPort string
-	StoreInterval string
-	Sources       = make(SourceParameters, 0)
-	Verbose       bool
-
-	expressions = make(map[string]*regexp.Regexp)
-	cache       = make([]Query, 0)
-	mtx         sync.RWMutex
+	Sources = make(SourceParameters, 0)
+	Verbose bool
 )
+
+type Collector struct {
+	DB            *gorm.DB
+	Port          int
+	StoreInterval int
+	expressions   map[string]*regexp.Regexp
+	cache         []Query
+	mtx           sync.RWMutex
+}
 
 type handler struct {
 	*syslog.BaseHandler
-}
-
-type Query struct {
-	source      net.Addr
-	at          time.Time
-	origin      string
-	destination string
 }
 
 func filter(m *syslog.Message) bool {
@@ -78,6 +83,12 @@ func (h *handler) mainLoop() {
 				fmt.Println("Received syslog: @", m.Content, "@")
 			}
 			continue
+		}
+
+		hwAddr, err := arp.FindByIP(origin)
+
+		if err != nil {
+			fmt.Println("arp.FindByIP: ", err)
 		}
 
 		query := Query{
@@ -141,6 +152,7 @@ func Store() {
 			args := sqlite3.NamedArgs{
 				"$at":          query.at,
 				"$origin":      query.origin,
+				"$mac":         query.mac,
 				"$destination": query.destination,
 			}
 
@@ -174,6 +186,20 @@ func insertHost(db *sqlite3.Conn, address string) (errors bool) {
 	}
 
 	if err := db.Exec(sqlInsertHost, args); err != nil && !strings.Contains(err.Error(), notUnique) {
+		fmt.Println("Error inserting host:", err, "[", args, "]")
+		errors = true
+	}
+
+	return
+}
+
+func insertMachine(db *sqlite3.Conn, address, mac string) (errors bool) {
+	args := sqlite3.NamedArgs{
+		"$address": address,
+		"$mac":     mac,
+	}
+
+	if err := db.Exec(sqlInsertMachine, args); err != nil && !strings.Contains(err.Error(), notUnique) {
 		fmt.Println("Error inserting host:", err, "[", args, "]")
 		errors = true
 	}

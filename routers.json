@@ -1,0 +1,3 @@
+{
+	"Thomson DWG850-4B": "(UD|TC)P (?P<origin>.*),.* --> .* ALLOW: Outbound access request \\[DNS query for (?P<destination>[^\\[\\]]+)"
+}

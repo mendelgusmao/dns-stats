@@ -1,7 +1,7 @@
 package collector
 
 import (
-	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"sync"
@@ -9,8 +9,9 @@ import (
 
 	"gorm"
 
-	"github.com/MendelGusmao/dns-stats/arp"
+	"github.com/MendelGusmao/dns-stats/collector/arp"
 	"github.com/MendelGusmao/dns-stats/collector/routers"
+	"github.com/MendelGusmao/dns-stats/model"
 
 	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"github.com/ziutek/syslog"
@@ -30,119 +31,89 @@ const (
 	notUnique = "column address is not unique"
 )
 
-var (
-	Sources = make(SourceParameters, 0)
-	Verbose bool
-)
-
-type Collector struct {
-	DB            *gorm.DB
-	Port          int
-	StoreInterval int
+type collector struct {
+	db            *gorm.DB
+	port          int
+	storeInterval int
 	expressions   map[string]*regexp.Regexp
-	cache         []Query
-	mtx           sync.RWMutex
+	cache         []model.Query
+	cacheMtx      sync.RWMutex
 }
 
 type handler struct {
 	*syslog.BaseHandler
+	expressions map[string]*regexp.Regexp
 }
 
-func filter(m *syslog.Message) bool {
-	return true
+func New(db *gorm.DB, port, storeInterval int, sources map[string]string) *collector {
+	if len(sources) == 0 {
+		log.Println("Not enough sources configured")
+		return nil
+	}
+
+	expressions := make(map[string]*regexp.Regexp)
+
+	for address, router := range sources {
+		expressions[address] = routers.Find(router)
+	}
+
+	return &collector{
+		db:            db,
+		port:          port,
+		storeInterval: storeInterval,
+		expressions:   expressions,
+		cache:         make([]model.Query, 0),
+	}
 }
 
-func newHandler() *handler {
-	h := handler{syslog.NewBaseHandler(5, filter, false)}
+func (c *collector) Run() {
+	log.Println("Initializing syslog collector")
+
+	go cacheStore()
+
+	s := syslog.NewServer()
+	s.AddHandler(c.handler())
+	s.Listen(c.port)
+}
+
+func (c *collector) handler() *handler {
+	h := handler{syslog.NewBaseHandler(5, func(m *syslog.Message) bool {
+		return true
+	}, false), c.expressions}
 	go h.mainLoop()
 	return &h
 }
 
-func (h *handler) mainLoop() {
-	for {
-		m := h.Get()
-		if m == nil {
-			break
-		}
+func (c *collector) cacheStore() {
+	interval, _ := time.ParseDuration(c.storeInterval)
 
-		expression, ok := expressions[m.Hostname]
-
-		if !ok {
-			if Verbose {
-				fmt.Printf("Source %s is unknown\n", m.Hostname)
-			}
-
-			continue
-		}
-
-		origin, destination, err := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
-
-		if err != nil {
-			if Verbose {
-				fmt.Println(err)
-				fmt.Println("Received syslog: @", m.Content, "@")
-			}
-			continue
-		}
-
-		hwAddr, err := arp.FindByIP(origin)
-
-		if err != nil {
-			fmt.Println("arp.FindByIP: ", err)
-		}
-
-		query := Query{
-			source:      m.Source,
-			at:          m.Time,
-			origin:      origin,
-			destination: destination,
-		}
-
-		if Verbose {
-			fmt.Println("Received syslog: @", m.Content, "@")
-			fmt.Println("Generated query: @", query, "@")
-		}
-
-		mtx.Lock()
-		cache = append(cache, query)
-		mtx.Unlock()
-	}
-
-	h.End()
-}
-
-func cacheStore() {
-	interval, _ := time.ParseDuration(StoreInterval)
-
-	c := time.Tick(interval)
-	for now := range c {
-		if Verbose {
-			fmt.Println("tick:", now)
-		}
+	ch := time.Tick(interval)
+	for now := range ch {
+		log.Println("cacheStore ticking", now)
 		Store()
 	}
 }
 
-func Store() {
+func (c *collector) Store() {
 	if len(cache) == 0 {
 		return
 	}
 
-	mtx.Lock()
-	defer mtx.Unlock()
+	cacheMtx.Lock()
+	defer cacheMtx.Unlock()
 
 	var db *sqlite3.Conn
 	var err error
 	if db, err = sqlite3.Open(DBName); err != nil {
-		fmt.Println("Error opening database:", err)
+		log.Println("Error opening database:", err)
 		return
 	}
 
 	defer db.Close()
 
 	if err := db.Begin(); err != nil {
-		fmt.Println("Error opening transaction:\n", err)
-		fmt.Printf("There are %d items waiting\n", len(cache))
+		log.Println("Error opening transaction:\n", err)
+		log.Printf("There are %d items waiting\n", len(cache))
 	} else {
 		errors := false
 		for _, query := range cache {
@@ -157,23 +128,23 @@ func Store() {
 			}
 
 			if err := db.Exec(sqlInsertQuery, args); err != nil {
-				fmt.Println("Error inserting query:", err, "[", args, "]")
+				log.Println("Error inserting query:", err, "[", args, "]")
 				errors = true
 			}
 		}
 
 		if errors {
 			if err := db.Rollback(); err != nil {
-				fmt.Println("Error rolling back transaction:", err)
+				log.Println("Error rolling back transaction:", err)
 			}
 			return
 		}
 
 		if err := db.Commit(); err != nil {
-			fmt.Println("Error committing transaction:", err)
-			fmt.Printf("There are %d items waiting\n", len(cache))
+			log.Println("Error committing transaction:", err)
+			log.Printf("There are %d items waiting\n", len(cache))
 		} else {
-			fmt.Printf("Transaction is successful, %d items inserted\n", len(cache))
+			log.Printf("Transaction is successful, %d items inserted\n", len(cache))
 			cache = make([]Query, 0)
 		}
 	}
@@ -186,7 +157,7 @@ func insertHost(db *sqlite3.Conn, address string) (errors bool) {
 	}
 
 	if err := db.Exec(sqlInsertHost, args); err != nil && !strings.Contains(err.Error(), notUnique) {
-		fmt.Println("Error inserting host:", err, "[", args, "]")
+		log.Println("Error inserting host:", err, "[", args, "]")
 		errors = true
 	}
 
@@ -200,30 +171,62 @@ func insertMachine(db *sqlite3.Conn, address, mac string) (errors bool) {
 	}
 
 	if err := db.Exec(sqlInsertMachine, args); err != nil && !strings.Contains(err.Error(), notUnique) {
-		fmt.Println("Error inserting host:", err, "[", args, "]")
+		log.Println("Error inserting host:", err, "[", args, "]")
 		errors = true
 	}
 
 	return
 }
 
-func Run() *syslog.Server {
-	fmt.Println("Initializing syslog collector")
+func (h *handler) mainLoop() {
+	for {
+		m := h.Get()
+		if m == nil {
+			break
+		}
 
-	if len(Sources) == 0 {
-		fmt.Println("Not enough sources configured")
-		return nil
+		expression, ok := expressions[m.Hostname]
+
+		if !ok {
+			if Verbose {
+				log.Printf("Source %s is unknown\n", m.Hostname)
+			}
+
+			continue
+		}
+
+		origin, destination, err := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
+
+		if err != nil {
+			if Verbose {
+				log.Println(err)
+				log.Println("Received syslog: @", m.Content, "@")
+			}
+			continue
+		}
+
+		hwAddr, err := arp.FindByIP(origin)
+
+		if err != nil {
+			log.Println("arp.FindByIP: ", err)
+		}
+
+		query := Query{
+			source:      m.Source,
+			at:          m.Time,
+			origin:      origin,
+			destination: destination,
+		}
+
+		if Verbose {
+			log.Println("Received syslog: @", m.Content, "@")
+			log.Println("Generated query: @", query, "@")
+		}
+
+		cacheMtx.Lock()
+		cache = append(cache, query)
+		cacheMtx.Unlock()
 	}
 
-	for _, router := range Sources {
-		expressions[router.Host] = routers.Find(router.Router)
-	}
-
-	go cacheStore()
-
-	s := syslog.NewServer()
-	s.AddHandler(newHandler())
-	s.Listen(CollectorPort)
-
-	return s
+	h.End()
 }

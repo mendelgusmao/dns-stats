@@ -2,26 +2,17 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"gorm"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/MendelGusmao/dns-stats/collector"
+	"github.com/MendelGusmao/dns-stats/config"
 	"github.com/MendelGusmao/dns-stats/model"
 	"github.com/MendelGusmao/dns-stats/report"
-
 	"github.com/MendelGusmao/envconfig"
-)
-
-const (
-	sql = `CREATE TABLE IF NOT EXISTS queries (at DATE, origin INTEGER, destination INTEGER);
-		   CREATE TABLE IF NOT EXISTS machines (id INTEGER PRIMARY KEY, address TEXT, mac TEXT);
-		   CREATE TABLE IF NOT EXISTS hosts (id INTEGER PRIMARY KEY, address TEXT UNIQUE);
-		   CREATE INDEX IF NOT EXISTS address_idx ON hosts (address COLLATE NOCASE);
-		   CREATE INDEX IF NOT EXISTS machines_address_idx ON hosts (address COLLATE NOCASE);
-		   CREATE INDEX IF NOT EXISTS machines_mac_idx ON hosts (mac COLLATE NOCASE);`
+	"github.com/jinzhu/gorm"
 )
 
 var (
@@ -50,51 +41,42 @@ func init() {
 
 func main() {
 	envconfig.Process("dns_stats", &config.DNSStats)
-	buildDatabase()
+	config.DNSStats.Defaults()
+	db := initDatabase()
 
-	r := rep
-
-	report.ReportPort = reportPort
-	report.DBName = dbname
-	report.Lines = reportLines
-
-	if stdOutReport {
-		fmt.Println(report.Render(period))
-	} else {
-		fmt.Printf("Configuration parameters: \n")
-		fmt.Printf("  db -> %s\n", dbname)
-		fmt.Printf("  sources -> %s\n", sources)
-		fmt.Printf("  collector-port -> %s\n", collectorPort)
-		fmt.Printf("  report-port -> %s\n", reportPort)
-		fmt.Printf("  store-interval -> %s\n", storeInterval)
-		fmt.Printf("  report-lines -> %d\n", reportLines)
-
-		collector.CollectorPort = collectorPort
-		collector.DBName = dbname
-		collector.StoreInterval = storeInterval
-		collector.Sources = sources
-		collector.Verbose = verbose
-
-		go report.Run()
-		s := collector.Run()
-
-		if s == nil {
-			os.Exit(1)
-		}
-
-		sc := make(chan os.Signal, 2)
-		signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT)
-		<-sc
-
-		fmt.Println("Storing...")
-		collector.Store()
-		fmt.Println("Shutdown the server...")
-		s.Shutdown()
-		fmt.Println("Server is down!")
+	if err := config.DNSStats.LoadRouters(); err != nil {
+		log.Println(err)
+		os.Exit(1)
 	}
+
+	c := collector.New(
+		db,
+		config.DNSStats.Collector.Port,
+		config.DNSStats.Collector.StorageInterval,
+		config.DNSStats.Collector.ParsedSources(),
+	)
+
+	r := report.New(
+		db,
+		config.DNSStats.Collector.Port,
+		config.DNSStats.Collector.Lines,
+	)
+
+	go report.Run()
+	go collector.Run()
+
+	sc := make(chan os.Signal, 2)
+	signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT)
+	<-sc
+
+	log.Println("Storing cached data")
+	collector.Store()
+	log.Println("Shutting down collector")
+	s.Shutdown()
+	log.Println("Exiting")
 }
 
-func buildDatabase() {
+func initDatabase() *gorm.DB {
 	db, err := gorm.Open(config.Ephemeris.Database.Driver, config.Ephemeris.Database.URL)
 	defer db.Close()
 
@@ -103,6 +85,8 @@ func buildDatabase() {
 	}
 
 	for _, err := range model.BuildDatabase(db) {
-		fmt.Println("Error building database:", err)
+		log.Println("Error building database:", err)
 	}
+
+	return db
 }

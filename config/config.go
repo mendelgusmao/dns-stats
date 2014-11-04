@@ -1,5 +1,12 @@
 package config
 
+import (
+	"encoding/json"
+	"io/ioutil"
+	"os"
+	"strings"
+)
+
 var DNSStats DNSStatsConfig
 
 type DNSStatsConfig struct {
@@ -17,18 +24,69 @@ type DBConfig struct {
 }
 
 type ReportConfig struct {
-	Port int
+	Port  int
+	Lines int
 }
 
 type CollectorConfig struct {
 	Port            int
-	StorageInterval int `envconfig:storage_interval`
+	StorageInterval string `envconfig:storage_interval`
+	Sources         string
 }
 
 type ARPConfig struct {
-	ScanInterval int `envconfig:scan_interval`
+	ScanInterval string `envconfig:scan_interval`
 }
 
-func (c *DNSStatsConfig) LoadRouters() {
+func (c *DNSStatsConfig) LoadRouters() error {
+	return jsonLoad(c.RoutersFile, &c.Routers)
+}
 
+func (c *CollectorConfig) ParsedSources() map[string]string {
+	sources := make(map[string]string)
+
+	for _, source := range strings.Split(c.Sources, " ") {
+		source := strings.Split(source, ":")
+		sources[source[0]] = source[1]
+	}
+
+	return sources
+}
+
+func jsonLoad(filename string, object interface{}) error {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(content, object)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *DNSStatsConfig) Defaults() {
+	pwd := os.Getenv("PWD")
+
+	if c.RoutersFile == "" {
+		c.RoutersFile = pwd + "/routers.json"
+	}
+
+	if c.Report.Port == 0 {
+		c.Report.Port = 8514
+	}
+
+	if c.Collector.Port == 0 {
+		c.Collector.Port = 1514
+	}
+
+	if c.DB.Driver == "" {
+		c.DB.Driver = "sqlite"
+	}
+
+	if c.DB.URL == "" {
+		c.DB.URL = pwd + "/dns-stats.db"
+	}
 }

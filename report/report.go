@@ -33,9 +33,17 @@ const (
 )
 
 type Report struct {
-	DB    *gorm.DB
-	Port  int
-	Lines int
+	db    *gorm.DB
+	port  int
+	lines int
+}
+
+func New(db *gorm.DB, port, lines int) *Report {
+	return &Report{
+		db:    db,
+		port:  port,
+		lines: lines,
+	}
 }
 
 func Run() {

@@ -1,9 +1,10 @@
 package fetchers
 
 import (
-	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"fmt"
 	"strconv"
+
+	"github.com/jinzhu/gorm"
 )
 
 type Top struct{}
@@ -19,14 +20,14 @@ func (_ Top) sql() string {
 			LIMIT $limit`
 }
 
-func (t Top) Fetch(db *sqlite3.Conn, origin string, from int64, lines int) ([]string, int) {
+func (t Top) Fetch(db *gorm.DB, origin string, from int64, lines int) ([]string, int) {
 	queries := make([]string, lines)
 	max := 0
 	pairs := make([][]interface{}, 0)
 	maxCount := 0
 
 	for stmt, err := db.Query(t.sql(), from, origin, lines); err == nil; err = stmt.Next() {
-		row := make(sqlite3.RowMap)
+		row := make(map[string]interface{})
 		errs := stmt.Scan(row)
 
 		if errs != nil {

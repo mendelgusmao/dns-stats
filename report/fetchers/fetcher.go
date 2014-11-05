@@ -1,10 +1,14 @@
 package fetchers
 
-import (
-	"code.google.com/p/go-sqlite/go1/sqlite3"
-)
+import "github.com/jinzhu/gorm"
+
+var Fetchers = make([]Fetchers, 0)
 
 type Fetcher interface {
 	sql() string
-	Fetch(*sqlite3.Conn, string, int64, int) ([]string, int)
+	Fetch(*gorm.DB, string, int64, int) ([]string, int)
+}
+
+func register(fetcher Fetcher) {
+	fetchers = append(fetchers, fetcher)
 }

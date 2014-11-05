@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"code.google.com/p/go-sqlite/go1/sqlite3"
+	"github.com/jinzhu/gorm"
 )
 
 const (
@@ -23,13 +23,13 @@ func (_ Recent) sql() string {
 			LIMIT $limit`
 }
 
-func (r Recent) Fetch(db *sqlite3.Conn, origin string, from int64, lines int) ([]string, int) {
+func (r Recent) Fetch(db *gorm.DB, origin string, from int64, lines int) ([]string, int) {
 	queries := make([]string, lines)
 	max := 0
 	index := 0
 
 	for stmt, err := db.Query(r.sql(), from, origin, lines); err == nil; err = stmt.Next() {
-		row := make(sqlite3.RowMap)
+		row := make(map[string]interface{})
 		errs := stmt.Scan(row)
 
 		if errs != nil {

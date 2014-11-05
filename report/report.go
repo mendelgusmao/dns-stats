@@ -2,7 +2,7 @@ package report
 
 import (
 	"fmt"
-	"gorm"
+	"log"
 	"net"
 	"net/http"
 	"sort"
@@ -10,15 +10,10 @@ import (
 	"time"
 
 	"github.com/MendelGusmao/dns-stats/report/fetchers"
-
-	"code.google.com/p/go-sqlite/go1/sqlite3"
+	"github.com/jinzhu/gorm"
 )
 
 var (
-	DBName     string
-	ReportPort string
-	Lines      int
-
 	usedFetchers = []fetchers.Fetcher{fetchers.Top{}, fetchers.Recent{}}
 	cachedHosts  = make(map[string]string)
 )
@@ -32,22 +27,22 @@ const (
 	format = "02/01/06 15:04:05"
 )
 
-type Report struct {
+type report struct {
 	db    *gorm.DB
 	port  int
 	lines int
 }
 
-func New(db *gorm.DB, port, lines int) *Report {
-	return &Report{
+func New(db *gorm.DB, port, lines int) *report {
+	return &report{
 		db:    db,
 		port:  port,
 		lines: lines,
 	}
 }
 
-func Run() {
-	fmt.Println("Initializing HTTP stats")
+func (r *report) Run() {
+	log.Println("report.Run: initializing HTTP daemon")
 
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/plain")
@@ -60,20 +55,13 @@ func Run() {
 		}
 	})
 
-	fmt.Println(http.ListenAndServe(ReportPort, nil))
+	log.Println(http.ListenAndServe(report.port, nil))
 }
 
-func Render(period string) string {
-	var err error
-	var db *sqlite3.Conn
-	if db, err = sqlite3.Open(DBName); err != nil {
-		fmt.Println("Error opening database:", err)
-		return ""
-	}
-
+func (r *report) Render(period string) string {
 	from := defineFrom(period)
 
-	buffersLength := Lines*len(usedFetchers) + 2*len(usedFetchers) + 1
+	buffersLength := r.lines*len(usedFetchers) + 2*len(usedFetchers) + 1
 	start := time.Now()
 	buffer := make([]string, buffersLength)
 	origins := fetchOrigins(db, from.Unix())
@@ -101,7 +89,7 @@ func Render(period string) string {
 		i := 2
 
 		for _, fetcher := range usedFetchers {
-			queries, newMax := fetcher.Fetch(db, origin, from.Unix(), Lines)
+			queries, newMax := fetcher.Fetch(db, origin, from.Unix(), r.lines)
 
 			if newMax > max {
 				max = newMax
@@ -133,15 +121,15 @@ func Render(period string) string {
 	return strings.Join(buffer, "\n")
 }
 
-func fetchOrigins(db *sqlite3.Conn, from int64) []string {
+func (r *report) fetchOrigins(from int64) []string {
 	origins := make([]string, 0)
 
 	for stmt, err := db.Query(sql, from); err == nil; err = stmt.Next() {
-		row := make(sqlite3.RowMap)
+		row := make(map[string]interface{})
 		errs := stmt.Scan(row)
 
 		if errs != nil {
-			fmt.Println("Error scanning:", errs)
+			log.Println("report.Run: Error scanning:", errs)
 			return nil
 		}
 
@@ -175,7 +163,7 @@ func defineFrom(period string) (from time.Time) {
 
 	duration, err := time.ParseDuration(period)
 	if err != nil {
-		fmt.Printf("Invalid period '%s'. Using default: 24h\n", period)
+		log.Printf("Invalid period '%s'. Using default: 24h\n", period)
 		duration, _ = time.ParseDuration("24h")
 	}
 

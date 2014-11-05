@@ -8,9 +8,9 @@ import (
 type Query struct {
 	Id            int
 	Source        net.Addr
-	CreatedAt     time.Time
 	Origin        Machine
 	OriginId      int
 	Destination   Host
 	DestinationId int
+	At            time.Time
 }

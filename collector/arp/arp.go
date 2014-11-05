@@ -16,6 +16,7 @@ var (
 
 const (
 	procNetARP = "/proc/net/arp"
+	Zero       = "00:00:00:00:00:00"
 )
 
 func Scan() error {

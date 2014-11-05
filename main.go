@@ -62,17 +62,17 @@ func main() {
 		config.DNSStats.Collector.Lines,
 	)
 
-	go report.Run()
-	go collector.Run()
+	go r.Run()
+	go c.Run()
 
 	sc := make(chan os.Signal, 2)
 	signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT)
 	<-sc
 
-	log.Println("Storing cached data")
-	collector.Store()
-	log.Println("Shutting down collector")
-	s.Shutdown()
+	log.Println("Storing buffered queries")
+	c.StoreBuffer()
+	log.Println("Shutting down syslog server")
+	c.SyslogServer().Shutdown()
 	log.Println("Exiting")
 }
 

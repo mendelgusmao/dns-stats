@@ -3,32 +3,15 @@ package collector
 import (
 	"log"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
-
-	"gorm"
 
 	"github.com/MendelGusmao/dns-stats/collector/arp"
 	"github.com/MendelGusmao/dns-stats/collector/routers"
 	"github.com/MendelGusmao/dns-stats/model"
+	"github.com/jinzhu/gorm"
 
-	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"github.com/ziutek/syslog"
-)
-
-const (
-	sqlInsertHost = `INSERT INTO hosts (address)
-					 VALUES ($address)`
-	sqlInsertMachine = `INSERT INTO machines (address, mac)
-					    VALUES ($address, $mac)`
-	sqlInsertQuery = `INSERT INTO queries
-					  VALUES (
-					  	$at, 
-					  	(SELECT id FROM machines WHERE address = $origin AND mac = $origin_mac), 
-					  	(SELECT id FROM hosts WHERE address = $destination)
-				  	  )`
-	notUnique = "column address is not unique"
 )
 
 type collector struct {
@@ -36,8 +19,9 @@ type collector struct {
 	port          int
 	storeInterval int
 	expressions   map[string]*regexp.Regexp
-	cache         []model.Query
-	cacheMtx      sync.RWMutex
+	buffer        []model.Query
+	bufferMtx     sync.RWMutex
+	syslogServer  *syslog.Server
 }
 
 type handler struct {
@@ -47,7 +31,7 @@ type handler struct {
 
 func New(db *gorm.DB, port, storeInterval int, sources map[string]string) *collector {
 	if len(sources) == 0 {
-		log.Println("Not enough sources configured")
+		log.Println("collector.Run: not enough sources configured")
 		return nil
 	}
 
@@ -62,120 +46,107 @@ func New(db *gorm.DB, port, storeInterval int, sources map[string]string) *colle
 		port:          port,
 		storeInterval: storeInterval,
 		expressions:   expressions,
-		cache:         make([]model.Query, 0),
+		buffer:        make([]model.Query, 0),
+		syslogServer:  syslog.NewServer(),
 	}
 }
 
 func (c *collector) Run() {
-	log.Println("Initializing syslog collector")
+	log.Println("collector.Run: initializing syslog collector")
 
-	go cacheStore()
+	go storeBuffer()
 
-	s := syslog.NewServer()
-	s.AddHandler(c.handler())
-	s.Listen(c.port)
+	s.SyslogServer.AddHandler(c.handler())
+	s.SyslogServer.Listen(c.port)
+}
+
+func (c *collector) SyslogServer() *syslog.Server {
+	return c.syslogServer
 }
 
 func (c *collector) handler() *handler {
 	h := handler{syslog.NewBaseHandler(5, func(m *syslog.Message) bool {
 		return true
 	}, false), c.expressions}
+
 	go h.mainLoop()
+
 	return &h
 }
 
-func (c *collector) cacheStore() {
+func (c *collector) storeBuffer() {
 	interval, _ := time.ParseDuration(c.storeInterval)
 
-	ch := time.Tick(interval)
-	for now := range ch {
-		log.Println("cacheStore ticking", now)
+	for now := range time.Tick(interval) {
+		log.Println("collector.storeBuffer: ticking", now)
 		Store()
 	}
 }
 
-func (c *collector) Store() {
-	if len(cache) == 0 {
+func (c *collector) StoreBuffer() {
+	if len(c.buffer) == 0 {
 		return
 	}
 
-	cacheMtx.Lock()
-	defer cacheMtx.Unlock()
+	c.bufferMtx.Lock()
+	defer c.bufferMtx.Unlock()
 
-	var db *sqlite3.Conn
-	var err error
-	if db, err = sqlite3.Open(DBName); err != nil {
-		log.Println("Error opening database:", err)
+	tx := c.db.Begin()
+
+	if err := c.db.Error; err != nil {
+		log.Println("collector.StoreBuffer:", err)
+		log.Printf("collector.StoreBuffer: %d items waiting\n", len(buffer))
 		return
 	}
 
-	defer db.Close()
+	errors := false
+	for _, query := range buffer {
+		tx.FirstOrCreate(&query.Origin, query.Origin)
 
-	if err := db.Begin(); err != nil {
-		log.Println("Error opening transaction:\n", err)
-		log.Printf("There are %d items waiting\n", len(cache))
-	} else {
-		errors := false
-		for _, query := range cache {
-			errors = insertHost(db, query.destination)
-			errors = insertHost(db, query.origin)
-
-			args := sqlite3.NamedArgs{
-				"$at":          query.at,
-				"$origin":      query.origin,
-				"$mac":         query.mac,
-				"$destination": query.destination,
-			}
-
-			if err := db.Exec(sqlInsertQuery, args); err != nil {
-				log.Println("Error inserting query:", err, "[", args, "]")
-				errors = true
-			}
-		}
-
-		if errors {
-			if err := db.Rollback(); err != nil {
-				log.Println("Error rolling back transaction:", err)
-			}
+		if err := tx.Error; err != nil {
+			log.Println("collector.StoreBuffer (origin):", err)
 			return
 		}
 
-		if err := db.Commit(); err != nil {
-			log.Println("Error committing transaction:", err)
-			log.Printf("There are %d items waiting\n", len(cache))
-		} else {
-			log.Printf("Transaction is successful, %d items inserted\n", len(cache))
-			cache = make([]Query, 0)
+		tx.FirstOrCreate(&query.Destination, query.Destination)
+
+		if err := tx.Error; err != nil {
+			log.Println("collector.StoreBuffer (destination):", err)
+			return
+		}
+
+		tx.Save(&query)
+
+		if err := tx.Error; err != nil {
+			log.Println("collector.StoreBuffer (query):", err)
+			return
 		}
 	}
 
-}
+	if errors {
+		tx.Rollback()
 
-func insertHost(db *sqlite3.Conn, address string) (errors bool) {
-	args := sqlite3.NamedArgs{
-		"$address": address,
+		if err := tx.Error; err != nil {
+			log.Println("collector.StoreBuffer (rolling back transaction):", err)
+		}
+
+		return
 	}
 
-	if err := db.Exec(sqlInsertHost, args); err != nil && !strings.Contains(err.Error(), notUnique) {
-		log.Println("Error inserting host:", err, "[", args, "]")
-		errors = true
+	tx.Commit()
+
+	if err := tx.Error; err != nil {
+		if err := tx.Error; err != nil {
+			log.Println("collector.StoreBuffer (committing transaction):", err)
+		}
+
+		log.Printf("collector.StoreBuffer: %d items waiting\n", len(buffer))
+
+		return
 	}
 
-	return
-}
-
-func insertMachine(db *sqlite3.Conn, address, mac string) (errors bool) {
-	args := sqlite3.NamedArgs{
-		"$address": address,
-		"$mac":     mac,
-	}
-
-	if err := db.Exec(sqlInsertMachine, args); err != nil && !strings.Contains(err.Error(), notUnique) {
-		log.Println("Error inserting host:", err, "[", args, "]")
-		errors = true
-	}
-
-	return
+	log.Printf("collector.StoreBuffer: transaction is successful, %d items inserted\n", len(buffer))
+	buffer = make([]Query, 0)
 }
 
 func (h *handler) mainLoop() {
@@ -188,20 +159,14 @@ func (h *handler) mainLoop() {
 		expression, ok := expressions[m.Hostname]
 
 		if !ok {
-			if Verbose {
-				log.Printf("Source %s is unknown\n", m.Hostname)
-			}
-
+			log.Printf("collector.mainLoop: source %s is unknown\n", m.Hostname)
 			continue
 		}
 
 		origin, destination, err := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
 
 		if err != nil {
-			if Verbose {
-				log.Println(err)
-				log.Println("Received syslog: @", m.Content, "@")
-			}
+			log.Println("collector.mainLoop:", err)
 			continue
 		}
 
@@ -211,21 +176,16 @@ func (h *handler) mainLoop() {
 			log.Println("arp.FindByIP: ", err)
 		}
 
-		query := Query{
-			source:      m.Source,
-			at:          m.Time,
-			origin:      origin,
-			destination: destination,
+		query := model.Query{
+			Source:      m.Source,
+			Origin:      model.Machine{MAC: hwAddr}.SetIP(origin),
+			Destination: model.Host{Address: destination},
+			At:          m.Time,
 		}
 
-		if Verbose {
-			log.Println("Received syslog: @", m.Content, "@")
-			log.Println("Generated query: @", query, "@")
-		}
-
-		cacheMtx.Lock()
-		cache = append(cache, query)
-		cacheMtx.Unlock()
+		c.bufferMtx.Lock()
+		buffer = append(buffer, query)
+		c.bufferMtx.Unlock()
 	}
 
 	h.End()

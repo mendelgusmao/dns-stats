@@ -16,7 +16,7 @@ type DNSStatsConfig struct {
 	Report      ReportConfig
 	Collector   CollectorConfig
 	ARP         ARPConfig
-	RoutersFile string
+	RoutersFile string `envconfig:routers`
 	Routers     map[string]string
 }
 
@@ -26,13 +26,13 @@ type DBConfig struct {
 }
 
 type ReportConfig struct {
-	Port     int
-	Lines    int
-	Fetchers []string
+	Interface string
+	Lines     int
+	Fetchers  []string
 }
 
 type CollectorConfig struct {
-	Port            int
+	Interface       string
 	StorageInterval string `envconfig:storage_interval`
 	Sources         string
 }
@@ -85,12 +85,12 @@ func (c *DNSStatsConfig) Defaults() {
 		c.RoutersFile = pwd + "/routers.json"
 	}
 
-	if c.Report.Port == 0 {
-		c.Report.Port = 8514
+	if c.Report.Interface == "" {
+		c.Report.Interface = ":8514"
 	}
 
-	if c.Collector.Port == 0 {
-		c.Collector.Port = 1514
+	if c.Collector.Interface == "" {
+		c.Collector.Interface = ":1514"
 	}
 
 	if c.DB.Driver == "" {

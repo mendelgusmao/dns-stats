@@ -20,15 +20,22 @@ func (_ top) sql() string {
 			LIMIT $limit`
 }
 
-func (t top) Fetch(db *gorm.DB, origin string, from int64, lines int) ([]string, int) {
+func (f top) Fetch(db *gorm.DB, origin string, from int64, lines int) ([]string, int) {
 	queries := make([]string, lines)
 	max := 0
 	pairs := make([][]interface{}, 0)
 	maxCount := 0
 
-	for stmt, err := db.Query(t.sql(), from, origin, lines); err == nil; err = stmt.Next() {
+	rows, err := db.Raw(f.sql(), from, origin, lines).Rows()
+
+	if err != nil {
+		fmt.Println("report.malware.Fetch (querying):", err)
+		return queries, 0
+	}
+
+	for rows.Next() {
 		row := make(map[string]interface{})
-		errs := stmt.Scan(row)
+		errs := rows.Scan(row)
 
 		if errs != nil {
 			fmt.Println("Error scanning:", errs)

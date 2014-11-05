@@ -3,6 +3,7 @@ package collector
 import (
 	"log"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 type collector struct {
 	db            *gorm.DB
 	port          int
-	storeInterval int
+	storeInterval string
 	expressions   map[string]*regexp.Regexp
 	buffer        []model.Query
 	bufferMtx     sync.RWMutex
@@ -29,7 +30,7 @@ type handler struct {
 	expressions map[string]*regexp.Regexp
 }
 
-func New(db *gorm.DB, port, storeInterval int, sources map[string]string) *collector {
+func New(db *gorm.DB, port int, storeInterval string, sources map[string]string) *collector {
 	if len(sources) == 0 {
 		log.Println("collector.Run: not enough sources configured")
 		return nil
@@ -54,10 +55,10 @@ func New(db *gorm.DB, port, storeInterval int, sources map[string]string) *colle
 func (c *collector) Run() {
 	log.Println("collector.Run: initializing syslog collector")
 
-	go storeBuffer()
+	go c.storeBuffer()
 
-	s.SyslogServer.AddHandler(c.handler())
-	s.SyslogServer.Listen(c.port)
+	c.syslogServer.AddHandler(c.handler())
+	c.syslogServer.Listen(strconv.Itoa(c.port))
 }
 
 func (c *collector) SyslogServer() *syslog.Server {
@@ -69,7 +70,7 @@ func (c *collector) handler() *handler {
 		return true
 	}, false), c.expressions}
 
-	go h.mainLoop()
+	go h.mainLoop(c)
 
 	return &h
 }
@@ -79,7 +80,7 @@ func (c *collector) storeBuffer() {
 
 	for now := range time.Tick(interval) {
 		log.Println("collector.storeBuffer: ticking", now)
-		Store()
+		c.StoreBuffer()
 	}
 }
 
@@ -95,12 +96,12 @@ func (c *collector) StoreBuffer() {
 
 	if err := c.db.Error; err != nil {
 		log.Println("collector.StoreBuffer:", err)
-		log.Printf("collector.StoreBuffer: %d items waiting\n", len(buffer))
+		log.Printf("collector.StoreBuffer: %d items waiting\n", len(c.buffer))
 		return
 	}
 
 	errors := false
-	for _, query := range buffer {
+	for _, query := range c.buffer {
 		tx.FirstOrCreate(&query.Origin, query.Origin)
 
 		if err := tx.Error; err != nil {
@@ -140,23 +141,23 @@ func (c *collector) StoreBuffer() {
 			log.Println("collector.StoreBuffer (committing transaction):", err)
 		}
 
-		log.Printf("collector.StoreBuffer: %d items waiting\n", len(buffer))
+		log.Printf("collector.StoreBuffer: %d items waiting\n", len(c.buffer))
 
 		return
 	}
 
-	log.Printf("collector.StoreBuffer: transaction is successful, %d items inserted\n", len(buffer))
-	buffer = make([]Query, 0)
+	log.Printf("collector.StoreBuffer: transaction is successful, %d items inserted\n", len(c.buffer))
+	c.buffer = make([]model.Query, 0)
 }
 
-func (h *handler) mainLoop() {
+func (h *handler) mainLoop(c *collector) {
 	for {
 		m := h.Get()
 		if m == nil {
 			break
 		}
 
-		expression, ok := expressions[m.Hostname]
+		expression, ok := c.expressions[m.Hostname]
 
 		if !ok {
 			log.Printf("collector.mainLoop: source %s is unknown\n", m.Hostname)
@@ -184,7 +185,7 @@ func (h *handler) mainLoop() {
 		}
 
 		c.bufferMtx.Lock()
-		buffer = append(buffer, query)
+		c.buffer = append(c.buffer, query)
 		c.bufferMtx.Unlock()
 	}
 

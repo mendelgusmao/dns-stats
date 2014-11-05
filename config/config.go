@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/MendelGusmao/dns-stats/collector/routers"
 )
 
 var DNSStats DNSStatsConfig
@@ -39,7 +41,15 @@ type ARPConfig struct {
 }
 
 func (c *DNSStatsConfig) LoadRouters() error {
-	return jsonLoad(c.RoutersFile, &c.Routers)
+	if err := jsonLoad(c.RoutersFile, &c.Routers); err != nil {
+		return err
+	}
+
+	for routerName, expression := range c.Routers {
+		routers.Register(routerName, expression)
+	}
+
+	return nil
 }
 
 func (c *CollectorConfig) ParsedSources() map[string]string {

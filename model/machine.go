@@ -13,7 +13,7 @@ type Machine struct {
 	CreatedAt time.Time
 }
 
-func (m *Machine) SetIP(ip string) *Machine {
+func (m Machine) SetIP(ip string) Machine {
 	m.IP = binary.LittleEndian.Uint32(net.ParseIP(ip).To4())
 	return m
 }

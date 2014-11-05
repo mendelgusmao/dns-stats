@@ -32,8 +32,8 @@ func Register(routerName, message string) {
 		return
 	}
 
-	fmt.Printf("Registering router %s\n", router.name())
-	routers[router.name()] = re
+	fmt.Printf("Registering router %s\n", routerName)
+	routers[routerName] = re
 }
 
 func Registered() string {

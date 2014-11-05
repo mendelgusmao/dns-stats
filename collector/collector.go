@@ -3,7 +3,6 @@ package collector
 import (
 	"log"
 	"regexp"
-	"strconv"
 	"sync"
 	"time"
 
@@ -17,7 +16,7 @@ import (
 
 type collector struct {
 	db            *gorm.DB
-	port          int
+	iface         string
 	storeInterval string
 	expressions   map[string]*regexp.Regexp
 	buffer        []model.Query
@@ -30,7 +29,7 @@ type handler struct {
 	expressions map[string]*regexp.Regexp
 }
 
-func New(db *gorm.DB, port int, storeInterval string, sources map[string]string) *collector {
+func New(db *gorm.DB, iface, storeInterval string, sources map[string]string) *collector {
 	if len(sources) == 0 {
 		log.Println("collector.Run: not enough sources configured")
 		return nil
@@ -44,7 +43,7 @@ func New(db *gorm.DB, port int, storeInterval string, sources map[string]string)
 
 	return &collector{
 		db:            db,
-		port:          port,
+		iface:         iface,
 		storeInterval: storeInterval,
 		expressions:   expressions,
 		buffer:        make([]model.Query, 0),
@@ -58,7 +57,7 @@ func (c *collector) Run() {
 	go c.storeBuffer()
 
 	c.syslogServer.AddHandler(c.handler())
-	c.syslogServer.Listen(strconv.Itoa(c.port))
+	c.syslogServer.Listen(c.iface)
 }
 
 func (c *collector) SyslogServer() *syslog.Server {

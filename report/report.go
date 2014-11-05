@@ -28,16 +28,26 @@ const (
 )
 
 type report struct {
-	db    *gorm.DB
-	port  int
-	lines int
+	db       *gorm.DB
+	port     int
+	lines    int
+	fetchers []fetchers.Fetcher
 }
 
-func New(db *gorm.DB, port, lines int) *report {
+func New(db *gorm.DB, port, lines int, fetcherNames []string) *report {
+	enabledFetchers := make([]fetchers.Fetcher, len(fetcherNames))
+
+	for _, fetcherName := range fetcherNames {
+		if fetcher := fetchers.Find(fetcherName); f != nil {
+			enabledFetchers = append(enabledFetchers, fetcher)
+		}
+	}
+
 	return &report{
-		db:    db,
-		port:  port,
-		lines: lines,
+		db:       db,
+		port:     port,
+		lines:    lines,
+		fetchers: enabledFetchers,
 	}
 }
 

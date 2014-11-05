@@ -1,8 +1,14 @@
 package fetchers
 
-import "github.com/jinzhu/gorm"
+import (
+	"fmt"
+	"log"
+	"reflect"
 
-var Fetchers = make([]Fetchers, 0)
+	"github.com/jinzhu/gorm"
+)
+
+var fetchers = make(map[string]Fetcher)
 
 type Fetcher interface {
 	sql() string
@@ -10,5 +16,28 @@ type Fetcher interface {
 }
 
 func register(fetcher Fetcher) {
-	fetchers = append(fetchers, fetcher)
+	obj := reflect.TypeOf(fetcher)
+
+	if obj.Kind() == reflect.Ptr {
+		obj = obj.Elem()
+	}
+
+	name := obj.Name()
+
+	if _, ok := fetchers[name]; ok {
+		panic(fmt.Sprintf("fetchers.Register: %s is already registered", name))
+	}
+
+	fetchers[name] = fetcher
+}
+
+func Find(name string) Fetcher {
+	fetcher, ok := fetchers[name]
+
+	if !ok {
+		log.Printf("fetcher.Enable: %s is not registered")
+		return nil
+	}
+
+	return fetcher
 }

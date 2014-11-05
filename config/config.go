@@ -26,8 +26,9 @@ type DBConfig struct {
 }
 
 type ReportConfig struct {
-	Port  int
-	Lines int
+	Port     int
+	Lines    int
+	Fetchers []string
 }
 
 type CollectorConfig struct {

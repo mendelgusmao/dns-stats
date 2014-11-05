@@ -7,9 +7,9 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-type Top struct{}
+type top struct{}
 
-func (_ Top) sql() string {
+func (_ top) sql() string {
 	return `SELECT address, COUNT(*) AS c 
 			FROM hosts, queries
 			WHERE at >= $from
@@ -20,7 +20,7 @@ func (_ Top) sql() string {
 			LIMIT $limit`
 }
 
-func (t Top) Fetch(db *gorm.DB, origin string, from int64, lines int) ([]string, int) {
+func (t top) Fetch(db *gorm.DB, origin string, from int64, lines int) ([]string, int) {
 	queries := make([]string, lines)
 	max := 0
 	pairs := make([][]interface{}, 0)
@@ -58,4 +58,8 @@ func (t Top) Fetch(db *gorm.DB, origin string, from int64, lines int) ([]string,
 	}
 
 	return queries, max
+}
+
+func init() {
+	register(top{})
 }

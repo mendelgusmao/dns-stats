@@ -2,7 +2,7 @@ package routers
 
 import (
 	"errors"
-	"fmt"
+	"log"
 	"regexp"
 	"strings"
 )
@@ -11,11 +11,6 @@ var (
 	routers   = make(map[string]*regexp.Regexp)
 	noMatches = errors.New("Couldn't extract data from message")
 )
-
-type Router interface {
-	name() string
-	message() string
-}
 
 func Register(routerName, message string) {
 	re := regexp.MustCompile(message)
@@ -28,15 +23,15 @@ func Register(routerName, message string) {
 	}
 
 	if captures != 2 {
-		fmt.Printf("Router %s is not going to be registered: absence or excess of named captures (origin, destination)\n", routerName)
+		log.Printf("Router %s is not going to be registered: absence or excess of named captures (origin, destination)\n", routerName)
 		return
 	}
 
-	fmt.Printf("Registering router %s\n", routerName)
+	log.Printf("Registering router %s\n", routerName)
 	routers[routerName] = re
 }
 
-func Registered() string {
+func List() string {
 	registered := make([]string, 0)
 
 	for name, _ := range routers {

@@ -35,7 +35,7 @@ func Find(name string) Fetcher {
 	fetcher, ok := fetchers[name]
 
 	if !ok {
-		log.Printf("fetcher.Enable: %s is not registered")
+		log.Printf("fetcher.Enable: %s is not registered", name)
 		return nil
 	}
 

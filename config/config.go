@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
-	"strings"
 
 	"github.com/MendelGusmao/dns-stats/collector/routers"
 )
@@ -34,7 +33,7 @@ type ReportConfig struct {
 type CollectorConfig struct {
 	Interface       string
 	StorageInterval string `envconfig:storage_interval`
-	Sources         string
+	Sources         map[string]string
 }
 
 type ARPConfig struct {
@@ -51,17 +50,6 @@ func (c *DNSStatsConfig) LoadRouters() error {
 	}
 
 	return nil
-}
-
-func (c *CollectorConfig) ParsedSources() map[string]string {
-	sources := make(map[string]string)
-
-	for _, source := range strings.Split(c.Sources, " ") {
-		source := strings.Split(source, ":")
-		sources[source[0]] = source[1]
-	}
-
-	return sources
 }
 
 func jsonLoad(filename string, object interface{}) error {
@@ -94,7 +82,7 @@ func (c *DNSStatsConfig) Defaults() {
 	}
 
 	if c.DB.Driver == "" {
-		c.DB.Driver = "sqlite"
+		c.DB.Driver = "sqlite3"
 	}
 
 	if c.DB.URL == "" {

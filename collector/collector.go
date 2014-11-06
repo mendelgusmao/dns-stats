@@ -31,7 +31,7 @@ type handler struct {
 
 func New(db *gorm.DB, iface, storeInterval string, sources map[string]string) *collector {
 	if len(sources) == 0 {
-		log.Println("collector.Run: not enough sources configured")
+		log.Println("collector.New: not enough sources configured")
 		return nil
 	}
 

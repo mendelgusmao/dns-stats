@@ -12,6 +12,8 @@ import (
 	"github.com/MendelGusmao/dns-stats/report"
 	"github.com/MendelGusmao/envconfig"
 	"github.com/jinzhu/gorm"
+
+	_ "code.google.com/p/go-sqlite/go1/sqlite3"
 )
 
 func main() {
@@ -28,7 +30,7 @@ func main() {
 		db,
 		config.DNSStats.Collector.Interface,
 		config.DNSStats.Collector.StorageInterval,
-		config.DNSStats.Collector.ParsedSources(),
+		config.DNSStats.Collector.Sources,
 	)
 
 	r := report.New(
@@ -37,6 +39,10 @@ func main() {
 		config.DNSStats.Report.Lines,
 		config.DNSStats.Report.Fetchers,
 	)
+
+	if c == nil || r == nil {
+		os.Exit(1)
+	}
 
 	go r.Run()
 	go c.Run()

@@ -5,6 +5,8 @@ import (
 	"log"
 	"regexp"
 	"strings"
+
+	"github.com/MendelGusmao/dns-stats/model"
 )
 
 var (
@@ -23,11 +25,11 @@ func Register(routerName, message string) {
 	}
 
 	if captures != 2 {
-		log.Printf("Router %s is not going to be registered: absence or excess of named captures (origin, destination)\n", routerName)
+		log.Printf("routers.Register: %s is not going to be registered: absence or excess of named captures (origin, destination)\n", routerName)
 		return
 	}
 
-	log.Printf("Registering router %s\n", routerName)
+	log.Printf("routers.Register: registered %s\n", routerName)
 	routers[routerName] = re
 }
 
@@ -51,21 +53,24 @@ func Find(name string) *regexp.Regexp {
 	return re
 }
 
-func Extract(expression *regexp.Regexp, matches []string) (origin, destination string, err error) {
+func Extract(expression *regexp.Regexp, content string) (*model.Query, error) {
+	matches := expression.FindStringSubmatch(content)
+
 	if len(matches) < 2 {
-		err = noMatches
-		return
+		return nil, noMatches
 	}
+
+	query := &model.Query{}
 
 	for index, name := range expression.SubexpNames() {
 		if name == "origin" {
-			origin = matches[index]
+			query.Origin = model.Machine{}.SetIP(matches[index])
 		}
 
 		if name == "destination" {
-			destination = matches[index]
+			query.Destination = model.Host{Address: matches[index]}
 		}
 	}
 
-	return
+	return query, nil
 }

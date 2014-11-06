@@ -7,3 +7,7 @@ type Host struct {
 	Address   string
 	CreatedAt time.Time
 }
+
+func init() {
+	register(Host{})
+}

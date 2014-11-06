@@ -163,28 +163,25 @@ func (h *handler) mainLoop(c *collector) {
 			continue
 		}
 
-		origin, destination, err := routers.Extract(expression, expression.FindStringSubmatch(m.Content))
+		query, err := routers.Extract(expression, m.Content)
 
 		if err != nil {
 			log.Println("collector.mainLoop:", err)
 			continue
 		}
 
-		hwAddr, err := arp.FindByIP(origin)
+		hwAddr, err := arp.FindByIP(query.Origin.StringIP)
 
 		if err != nil {
 			log.Println("arp.FindByIP: ", err)
 		}
 
-		query := model.Query{
-			Source:      m.Source,
-			Origin:      model.Machine{MAC: hwAddr}.SetIP(origin),
-			Destination: model.Host{Address: destination},
-			At:          m.Time,
-		}
+		query.SetSource(m.Source)
+		query.At = m.Time
+		query.Origin.MAC = hwAddr
 
 		c.bufferMtx.Lock()
-		c.buffer = append(c.buffer, query)
+		c.buffer = append(c.buffer, *query)
 		c.bufferMtx.Unlock()
 	}
 

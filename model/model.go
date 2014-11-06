@@ -1,6 +1,8 @@
 package model
 
 import (
+	"log"
+
 	"github.com/jinzhu/gorm"
 )
 
@@ -10,16 +12,17 @@ func register(model interface{}) {
 	models = append(models, model)
 }
 
-func BuildDatabase(db gorm.DB) []error {
-	errors := make([]error, 0)
+func BuildDatabase(db gorm.DB) bool {
+	ok := true
 
-	for _, model := range models {
+	for name, model := range models {
 		db.AutoMigrate(model)
 
 		if db.Error != nil {
-			errors = append(errors, db.Error)
+			log.Printf("Error creating table for %s: %v\n", name, db.Error)
+			ok = false
 		}
 	}
 
-	return errors
+	return ok
 }

@@ -21,6 +21,10 @@ func main() {
 	config.DNSStats.Defaults()
 	db := initDatabase()
 
+	if db == nil {
+		os.Exit(1)
+	}
+
 	if err := config.DNSStats.LoadRouters(); err != nil {
 		log.Println(err)
 		os.Exit(1)
@@ -66,8 +70,8 @@ func initDatabase() *gorm.DB {
 		panic(err)
 	}
 
-	for _, err := range model.BuildDatabase(db) {
-		log.Println("Error building database:", err)
+	if ok := model.BuildDatabase(db); !ok {
+		return nil
 	}
 
 	return &db

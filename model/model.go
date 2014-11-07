@@ -1,15 +1,29 @@
 package model
 
 import (
+	"fmt"
 	"log"
+	"reflect"
 
 	"github.com/jinzhu/gorm"
 )
 
-var models = make([]interface{}, 0)
+var models = make(map[string]interface{})
 
-func register(model interface{}) {
-	models = append(models, model)
+func register(fetcher interface{}) {
+	obj := reflect.TypeOf(fetcher)
+
+	if obj.Kind() == reflect.Ptr {
+		obj = obj.Elem()
+	}
+
+	name := obj.Name()
+
+	if _, ok := models[name]; ok {
+		panic(fmt.Sprintf("models.Register: %s is already registered", name))
+	}
+
+	models[name] = fetcher
 }
 
 func BuildDatabase(db gorm.DB) bool {

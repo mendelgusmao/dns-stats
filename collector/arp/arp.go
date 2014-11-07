@@ -3,6 +3,7 @@ package arp
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"os/exec"
 	"strings"
@@ -43,7 +44,11 @@ func Scan() error {
 		_, err := net.ParseMAC(parts[3])
 
 		if err != nil {
-			return fmt.Errorf("arp.go: Parsing '%s': %v", parts[3], err)
+			return fmt.Errorf("arp.Scan: Parsing '%s': %v", parts[3], err)
+		}
+
+		if _, ok := table[parts[0]]; !ok {
+			log.Printf("arp.Scan: %s (%s) is a new entry\n", parts[0], parts[3])
 		}
 
 		table[parts[0]] = parts[3]
@@ -61,17 +66,13 @@ func FindByIP(ip string) (string, error) {
 	mtx.Lock()
 	defer mtx.Unlock()
 
-	hwAddr, ok := table[ip]
+	_, ok := table[ip]
 
 	if !ok {
-		output, err := ping(ip)
-
-		if err != nil {
-			return "", fmt.Errorf("arp.go: Pinging '%s': %v -- %v", ip, err, output)
+		if output, err := ping(ip); err != nil {
+			return Zero, fmt.Errorf("arp.FindByIP: Pinging '%s': %v -- %v", ip, err, output)
 		}
-
-		hwAddr = table[ip]
 	}
 
-	return hwAddr, nil
+	return table[ip], nil
 }

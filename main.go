@@ -34,6 +34,7 @@ func main() {
 		db,
 		config.DNSStats.Collector.Interface,
 		config.DNSStats.Collector.StorageInterval,
+		config.DNSStats.Collector.ARPScanInterval,
 		config.DNSStats.Collector.Sources,
 	)
 

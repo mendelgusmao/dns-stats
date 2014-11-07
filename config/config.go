@@ -34,6 +34,7 @@ type CollectorConfig struct {
 	Interface       string
 	StorageInterval string `envconfig:storage_interval`
 	Sources         map[string]string
+	ARPScanInterval string `envconfig:arpscan_interval`
 }
 
 type ARPConfig struct {
@@ -79,6 +80,14 @@ func (c *DNSStatsConfig) Defaults() {
 
 	if c.Collector.Interface == "" {
 		c.Collector.Interface = ":1514"
+	}
+
+	if c.Collector.StorageInterval == "" {
+		c.Collector.StorageInterval = "1m"
+	}
+
+	if c.Collector.ARPScanInterval == "" {
+		c.Collector.ARPScanInterval = "5m"
 	}
 
 	if c.DB.Driver == "" {

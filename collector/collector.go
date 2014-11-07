@@ -15,13 +15,14 @@ import (
 )
 
 type collector struct {
-	db            *gorm.DB
-	iface         string
-	storeInterval string
-	expressions   map[string]*regexp.Regexp
-	buffer        []model.Query
-	bufferMtx     sync.RWMutex
-	syslogServer  *syslog.Server
+	db              *gorm.DB
+	iface           string
+	storeInterval   time.Duration
+	arpScanInterval time.Duration
+	expressions     map[string]*regexp.Regexp
+	buffer          []model.Query
+	bufferMtx       sync.RWMutex
+	syslogServer    *syslog.Server
 }
 
 type handler struct {
@@ -29,7 +30,7 @@ type handler struct {
 	expressions map[string]*regexp.Regexp
 }
 
-func New(db *gorm.DB, iface, storeInterval string, sources map[string]string) *collector {
+func New(db *gorm.DB, iface, store, arpScan string, sources map[string]string) *collector {
 	if len(sources) == 0 {
 		log.Println("collector.New: not enough sources configured")
 		return nil
@@ -41,13 +42,28 @@ func New(db *gorm.DB, iface, storeInterval string, sources map[string]string) *c
 		expressions[address] = routers.Find(router)
 	}
 
+	storeInterval, err := time.ParseDuration(store)
+
+	if err != nil {
+		log.Println("collector.New: invalid value for storeInterval")
+		return nil
+	}
+
+	arpScanInterval, err := time.ParseDuration(arpScan)
+
+	if err != nil {
+		log.Println("collector.New: invalid value for arpScanInterval")
+		return nil
+	}
+
 	return &collector{
-		db:            db,
-		iface:         iface,
-		storeInterval: storeInterval,
-		expressions:   expressions,
-		buffer:        make([]model.Query, 0),
-		syslogServer:  syslog.NewServer(),
+		db:              db,
+		iface:           iface,
+		storeInterval:   storeInterval,
+		arpScanInterval: arpScanInterval,
+		expressions:     expressions,
+		buffer:          make([]model.Query, 0),
+		syslogServer:    syslog.NewServer(),
 	}
 }
 
@@ -55,6 +71,9 @@ func (c *collector) Run() {
 	log.Println("collector.Run: initializing syslog collector")
 
 	go c.storeBuffer()
+	go c.arpScan()
+
+	arp.Scan()
 
 	c.syslogServer.AddHandler(c.handler())
 	c.syslogServer.Listen(c.iface)
@@ -75,11 +94,16 @@ func (c *collector) handler() *handler {
 }
 
 func (c *collector) storeBuffer() {
-	interval, _ := time.ParseDuration(c.storeInterval)
-
-	for now := range time.Tick(interval) {
+	for now := range time.Tick(c.storeInterval) {
 		log.Println("collector.storeBuffer: ticking", now)
 		c.StoreBuffer()
+	}
+}
+
+func (c *collector) arpScan() {
+	for now := range time.Tick(c.arpScanInterval) {
+		log.Println("collector.arpScanInterval: ticking", now)
+		arp.Scan()
 	}
 }
 

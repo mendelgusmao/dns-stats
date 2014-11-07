@@ -1,8 +1,8 @@
 package report
 
 import (
-	"strconv"
-	"strings"
+	"encoding/binary"
+	"net"
 )
 
 type vector []string
@@ -19,9 +19,6 @@ func (v vector) Less(i, j int) bool {
 	return v.value(v[i]) > v.value(v[j])
 }
 
-func (v vector) value(in string) (out int) {
-	blocks := strings.Split(in, ".")
-	block := blocks[len(blocks)-1]
-	out, _ = strconv.Atoi(block)
-	return
+func (v vector) value(in string) int {
+	return int(binary.BigEndian.Uint32(net.ParseIP(in).To4()))
 }

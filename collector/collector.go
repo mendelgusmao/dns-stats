@@ -146,7 +146,7 @@ func (c *collector) StoreBuffer() {
 	}
 
 	log.Printf("collector.StoreBuffer: transaction is successful, %d items inserted\n", len(c.buffer))
-	c.buffer = make([]model.Query, 0)
+	c.buffer = c.buffer[:cap(c.buffer)]
 }
 
 func (h *handler) mainLoop(c *collector) {

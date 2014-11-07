@@ -1,7 +1,7 @@
 package routers
 
 import (
-	"errors"
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -10,8 +10,7 @@ import (
 )
 
 var (
-	routers   = make(map[string]*regexp.Regexp)
-	noMatches = errors.New("Couldn't extract data from message")
+	routers = make(map[string]*regexp.Regexp)
 )
 
 func Register(routerName, message string) {
@@ -57,7 +56,7 @@ func Extract(expression *regexp.Regexp, content string) (*model.Query, error) {
 	matches := expression.FindStringSubmatch(content)
 
 	if len(matches) < 2 {
-		return nil, noMatches
+		return nil, fmt.Errorf("Couldn't extract data from message (%s)", content)
 	}
 
 	query := &model.Query{}

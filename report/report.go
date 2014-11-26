@@ -21,7 +21,7 @@ var (
 )
 
 const (
-	network = "192.168.0.%"
+	network = "192.168.144.%"
 	sql     = `SELECT DISTINCT address
 			   FROM hosts, queries
 			   WHERE at >= $from
@@ -34,6 +34,11 @@ func Run() {
 
 	http.HandleFunc("/dns", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/plain")
+
+		if r.Method == "HEAD" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 
 		if len(r.URL.RawQuery) == 0 {
 			w.Header().Add("Location", "/dns?day")

@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	table = make(map[string]string)
-	mtx   sync.RWMutex
+	table      = make(map[string]string)
+	mtx        sync.RWMutex
+	procNetARP = "/proc/net/arp"
 )
 
 const (
-	procNetARP = "/proc/net/arp"
-	Zero       = "00:00:00:00:00:00"
+	Zero = "00:00:00:00:00:00"
 )
 
 func Scan() error {
@@ -86,7 +86,7 @@ func addEntry(ip, mac string) {
 }
 
 func ping(ip string) (string, error) {
-	output, err := exec.Command("ping", "-c1", ip).CombinedOutput()
+	output, err := exec.Command("ping", "-c1", "-W1", ip).CombinedOutput()
 	return string(output), err
 }
 

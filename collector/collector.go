@@ -9,6 +9,7 @@ import (
 	"github.com/MendelGusmao/dns-stats/collector/arp"
 	"github.com/MendelGusmao/dns-stats/collector/routers"
 	"github.com/MendelGusmao/dns-stats/model"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/jinzhu/gorm"
 
 	"github.com/ziutek/syslog"
@@ -112,36 +113,39 @@ func (c *collector) StoreBuffer() {
 		return
 	}
 
+	log.Printf("collector.StoreBuffer: got to store %d buffered queries\n", len(c.buffer))
+	spew.Dump(c.buffer)
+
 	c.bufferMtx.Lock()
 	defer c.bufferMtx.Unlock()
 
 	tx := c.db.Begin()
 
-	if err := c.db.Error; err != nil {
-		log.Println("collector.StoreBuffer:", err)
+	if err := tx.Error; err != nil {
+		log.Println("collector.StoreBuffer (opening transaction):", err)
 		log.Printf("collector.StoreBuffer: %d items waiting\n", len(c.buffer))
 		return
 	}
 
 	errors := false
 	for _, query := range c.buffer {
-		tx.FirstOrCreate(&query.Origin, query.Origin)
+		err := tx.FirstOrCreate(&query.Origin, query.Origin).Error
 
-		if err := tx.Error; err != nil {
+		if err != nil {
 			log.Println("collector.StoreBuffer (origin):", err)
 			return
 		}
 
-		tx.FirstOrCreate(&query.Destination, query.Destination)
+		err = tx.FirstOrCreate(&query.Destination, query.Destination).Error
 
-		if err := tx.Error; err != nil {
+		if err != nil {
 			log.Println("collector.StoreBuffer (destination):", err)
 			return
 		}
 
-		tx.Save(&query)
+		err = tx.Save(&query).Error
 
-		if err := tx.Error; err != nil {
+		if err != nil {
 			log.Println("collector.StoreBuffer (query):", err)
 			return
 		}

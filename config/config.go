@@ -78,6 +78,10 @@ func (c *DNSStatsConfig) Defaults() {
 		c.Report.Interface = ":8514"
 	}
 
+	if c.Report.Lines == 0 {
+		c.Report.Lines = 25
+	}
+
 	if c.Collector.Interface == "" {
 		c.Collector.Interface = ":1514"
 	}

@@ -59,6 +59,8 @@ func Extract(expression *regexp.Regexp, content string) (*model.Query, error) {
 		return nil, fmt.Errorf("Couldn't extract data from message (%s)", content)
 	}
 
+	log.Printf("Successfully extracted data from message (%s)\n", content)
+
 	query := &model.Query{}
 
 	for index, name := range expression.SubexpNames() {

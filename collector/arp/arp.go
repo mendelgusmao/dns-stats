@@ -47,14 +47,42 @@ func Scan() error {
 			return fmt.Errorf("arp.Scan: Parsing '%s': %v", parts[3], err)
 		}
 
-		if _, ok := table[parts[0]]; !ok {
-			log.Printf("arp.Scan: %s (%s) is a new entry\n", parts[0], parts[3])
+		addEntry(parts[0], parts[3])
+	}
+
+	ifaces, err := net.Interfaces()
+
+	if err != nil {
+		return fmt.Errorf("arp.Scan: Scanning own interfaces: %v", err)
+	}
+
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+
+		if err != nil {
+			return fmt.Errorf("arp.Scan: Getting addresses of interface %s: %v", iface.Name, err)
 		}
 
-		table[parts[0]] = parts[3]
+		for _, addr := range addrs {
+			ip := strings.Split(addr.String(), "/")[0]
+
+			if iface.HardwareAddr.String() == "" {
+				continue
+			}
+
+			addEntry(ip, iface.HardwareAddr.String())
+		}
 	}
 
 	return nil
+}
+
+func addEntry(ip, mac string) {
+	if _, ok := table[ip]; !ok {
+		log.Printf("arp.Scan: %s (%s) is a new entry\n", ip, mac)
+	}
+
+	table[ip] = mac
 }
 
 func ping(ip string) (string, error) {

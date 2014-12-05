@@ -15,15 +15,15 @@ var (
 
 func Register(routerName, message string) {
 	re := regexp.MustCompile(message)
-	captures := 0
+	captures := make(map[string]bool)
 
 	for _, name := range re.SubexpNames() {
 		if name == "origin" || name == "destination" {
-			captures++
+			captures[name] = true
 		}
 	}
 
-	if captures != 2 {
+	if len(captures) != 2 {
 		log.Printf("routers.Register: %s is not going to be registered: absence or excess of named captures (origin, destination)\n", routerName)
 		return
 	}

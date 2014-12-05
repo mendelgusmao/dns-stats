@@ -28,12 +28,11 @@ func register(fetcher interface{}) {
 
 func BuildDatabase(db gorm.DB) bool {
 	ok := true
+	tx := db.Begin()
 
 	for name, model := range models {
-		db.AutoMigrate(model)
-
-		if db.Error != nil {
-			log.Printf("Error creating table for %s: %v\n", name, db.Error)
+		if err := tx.AutoMigrate(model).Error; err != nil {
+			log.Printf("Error creating table for %s: %v\n", name, err)
 			ok = false
 		}
 	}

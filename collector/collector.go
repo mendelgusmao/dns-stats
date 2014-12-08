@@ -16,7 +16,8 @@ import (
 )
 
 type collector struct {
-	db              *gorm.DB
+	dbDriver        string
+	dbURL           string
 	iface           string
 	storeInterval   time.Duration
 	arpScanInterval time.Duration
@@ -31,7 +32,7 @@ type handler struct {
 	expressions map[string]*regexp.Regexp
 }
 
-func New(db *gorm.DB, iface, store, arpScan string, sources map[string]string) *collector {
+func New(dbDriver, dbURL, iface, store, arpScan string, sources map[string]string) *collector {
 	if len(sources) == 0 {
 		log.Println("collector.New: not enough sources configured")
 		return nil
@@ -58,7 +59,8 @@ func New(db *gorm.DB, iface, store, arpScan string, sources map[string]string) *
 	}
 
 	return &collector{
-		db:              db,
+		dbDriver:        dbDriver,
+		dbURL:           dbURL,
 		iface:           iface,
 		storeInterval:   storeInterval,
 		arpScanInterval: arpScanInterval,
@@ -113,13 +115,21 @@ func (c *collector) StoreBuffer() {
 		return
 	}
 
+	db, err := gorm.Open(c.dbDriver, c.dbURL)
+
+	if err != nil {
+		log.Printf("collector.StoreBuffer (opening database connection):", err)
+		log.Printf("collector.StoreBuffer: %d items waiting\n", len(c.buffer))
+		return
+	}
+
 	log.Printf("collector.StoreBuffer: got to store %d buffered queries\n", len(c.buffer))
 	spew.Dump(c.buffer)
 
 	c.bufferMtx.Lock()
 	defer c.bufferMtx.Unlock()
 
-	tx := c.db.Begin()
+	tx := db.Begin()
 
 	if err := tx.Error; err != nil {
 		log.Println("collector.StoreBuffer (opening transaction):", err)

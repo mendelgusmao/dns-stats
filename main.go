@@ -32,7 +32,8 @@ func main() {
 	}
 
 	c := collector.New(
-		db,
+		config.DNSStats.DB.Driver,
+		config.DNSStats.DB.URL,
 		config.DNSStats.Collector.Interface,
 		config.DNSStats.Collector.StorageInterval,
 		config.DNSStats.Collector.ARPScanInterval,

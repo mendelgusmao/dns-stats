@@ -21,5 +21,5 @@ func (m Machine) SetIP(ip string) Machine {
 }
 
 func init() {
-	register(Machine{})
+	register(&Machine{})
 }

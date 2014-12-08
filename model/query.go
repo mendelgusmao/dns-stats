@@ -20,5 +20,5 @@ func (q Query) SetSource(addr net.Addr) {
 }
 
 func init() {
-	register(Query{})
+	register(&Query{})
 }

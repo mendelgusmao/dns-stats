@@ -9,5 +9,5 @@ type Host struct {
 }
 
 func init() {
-	register(Host{})
+	register(&Host{})
 }
